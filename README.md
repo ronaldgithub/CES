@@ -255,6 +255,12 @@ CES/
 
 ---
 
+## References
+
+- [MicrosoftDocs/sql-docs](https://github.com/MicrosoftDocs/sql-docs) — official SQL Server documentation source
+
+---
+
 ## Blog Post
 
 This project accompanies the blog post **[Just say YES to SQL Server 2025 CES](https://dbaronald.nl/just-say-yes-to-sql-server-2025-ces/)** — a hands-on walkthrough covering CES setup, Azure Event Hubs wiring, and consuming change events in a .NET Avalonia desktop app.
