@@ -1,0 +1,51 @@
+# NOTE: Not used in the current setup.
+#
+# SQL Server 2025 CES only supports Azure Event Hubs as a sink — it cannot
+# push directly to a self-hosted Kafka broker. The Avalonia app connects to
+# Event Hubs via the Kafka-compatible endpoint (port 9093, SASL/SSL).
+#
+# This file is kept here in case you want to simulate CES events locally
+# without Azure, e.g. by writing a small producer that publishes fake
+# CES-format JSON messages into Redpanda for UI development/testing.
+#
+# To start:  docker compose -f docker/docker-compose.yml up -d
+# Console:   http://localhost:8080
+
+services:
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    command:
+      - redpanda
+      - start
+      - --smp=1
+      - --overprovisioned
+      - --kafka-addr=INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092
+      - --advertise-kafka-addr=INTERNAL://redpanda:29092,EXTERNAL://localhost:9092
+      - --pandaproxy-addr=PLAINTEXT://0.0.0.0:8082
+      - --advertise-pandaproxy-addr=PLAINTEXT://localhost:8082
+      - --schema-registry-addr=http://0.0.0.0:8081
+    ports:
+      - "9092:9092"    # External Kafka (SQL Server + Avalonia app on host)
+      - "8081:8081"    # Schema Registry
+      - "8082:8082"    # Pandaproxy REST
+      - "9644:9644"    # Admin API
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "info", "--brokers=localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redpanda-console:
+    image: docker.redpanda.com/redpandadata/console:latest
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKERS: redpanda:29092
+    ports:
+      - "8080:8080"    # Console UI: http://localhost:8080
+
+volumes:
+  redpanda_data:
