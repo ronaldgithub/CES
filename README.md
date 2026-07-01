@@ -4,7 +4,7 @@ A dark-mode Avalonia desktop app that shows SQL Server 2025 Change Event Streami
 
 Alongside the live feed, the app ships 5 self-contained scenario-simulation tabs that demonstrate core CES consumer design patterns (idempotency, multiple consumers, parallel partitions, multi-table routing, batching) entirely in-memory — no Event Hub or SQL Server connection required to explore them.
 
-![CES Monitor screenshot](pictures/)
+![CES Monitor screenshot](pictures/live_feed.jpg)
 
 ---
 
