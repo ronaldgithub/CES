@@ -257,4 +257,12 @@ CES/
 
 ## Blog Post
 
-*Coming soon* — covers CES setup, Event Hubs wiring, and consuming change events in a .NET desktop app.
+This project accompanies the blog post **[Just say YES to SQL Server 2025 CES](https://dbaronald.nl/just-say-yes-to-sql-server-2025-ces/)** — a hands-on walkthrough covering CES setup, Azure Event Hubs wiring, and consuming change events in a .NET Avalonia desktop app.
+
+---
+
+## Author
+
+**Ronald de Groot**
+[ronald.de.groot@opendata.nl](mailto:ronald.de.groot@opendata.nl)
+[dbaronald.nl](https://dbaronald.nl)
