@@ -1,0 +1,81 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:CES.UI.ViewModels"
+             x:Class="CES.UI.Views.IdempotencyView"
+             x:DataType="vm:IdempotencyTabViewModel">
+
+    <Grid RowDefinitions="Auto,Auto,Auto,*" Background="#111827">
+
+        <!-- ── Action bar ── -->
+        <Border Grid.Row="0" Background="#1F2937" Padding="16,10">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <Button Content="Process Next Event" Command="{Binding ProcessNextEventCommand}"/>
+                <Button Content="Reset" Command="{Binding ResetCommand}"/>
+                <TextBlock Text="{Binding NextEventPreview}"
+                           Foreground="#93C5FD"
+                           FontFamily="Consolas,Menlo,monospace"
+                           FontSize="12.5"
+                           VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <!-- ── Ledger table ── -->
+        <StackPanel Grid.Row="1" Margin="16,12,16,0">
+            <TextBlock Text="ces_ledger" Foreground="#6B7280" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4"/>
+            <Border Background="#1F2937" BorderBrush="#374151" BorderThickness="0,0,0,1" Padding="12,6">
+                <Grid ColumnDefinitions="100,100,120,*">
+                    <TextBlock Grid.Column="0" Text="PARTITION" Foreground="#6B7280" FontSize="11" FontWeight="SemiBold"/>
+                    <TextBlock Grid.Column="1" Text="SEQUENCE"  Foreground="#6B7280" FontSize="11" FontWeight="SemiBold"/>
+                    <TextBlock Grid.Column="2" Text="COMMIT LSN" Foreground="#6B7280" FontSize="11" FontWeight="SemiBold"/>
+                    <TextBlock Grid.Column="3" Text="PROCESSED AT" Foreground="#6B7280" FontSize="11" FontWeight="SemiBold"/>
+                </Grid>
+            </Border>
+            <ListBox ItemsSource="{Binding Ledger}"
+                     Background="#111827"
+                     BorderThickness="0"
+                     MaxHeight="150">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Border Padding="12,6" BorderBrush="#1F2937" BorderThickness="0,0,0,1">
+                            <Grid ColumnDefinitions="100,100,120,*">
+                                <TextBlock Grid.Column="0" Text="{Binding PartitionId}" Foreground="#D1D5DB" FontFamily="Consolas,Menlo,monospace" FontSize="12.5"/>
+                                <TextBlock Grid.Column="1" Text="{Binding SequenceNumber}" Foreground="#6EE7B7" FontFamily="Consolas,Menlo,monospace" FontSize="12.5"/>
+                                <TextBlock Grid.Column="2" Text="{Binding CommitLsn}" Foreground="#93C5FD" FontFamily="Consolas,Menlo,monospace" FontSize="12.5"/>
+                                <TextBlock Grid.Column="3" Text="{Binding ProcessedAt, StringFormat={}{0:HH:mm:ss.fff}}" Foreground="#D1D5DB" FontFamily="Consolas,Menlo,monospace" FontSize="12.5"/>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </StackPanel>
+
+        <!-- ── Offset + target table cards ── -->
+        <Grid Grid.Row="2" ColumnDefinitions="*,*" Margin="16,12,16,0">
+            <Border Grid.Column="0" Background="#1F2937" CornerRadius="6" Padding="12" Margin="0,0,6,0">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="ces_offsets" Foreground="#6B7280" FontSize="11" FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding OffsetSummary}" Foreground="#6EE7B7" FontFamily="Consolas,Menlo,monospace" FontSize="12.5"/>
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="1" Background="#1F2937" CornerRadius="6" Padding="12" Margin="6,0,0,0">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Target table (Orders)" Foreground="#6B7280" FontSize="11" FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding TargetTableSummary}" Foreground="#FCA5A5" FontFamily="Consolas,Menlo,monospace" FontSize="12.5"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ── Log ── -->
+        <StackPanel Grid.Row="3" Margin="16,12,16,16">
+            <TextBlock Text="Log" Foreground="#6B7280" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4"/>
+            <ListBox ItemsSource="{Binding Log}" Background="#111827" BorderThickness="0">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}" Foreground="#D1D5DB" FontFamily="Consolas,Menlo,monospace" FontSize="12" Padding="0,2"/>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </StackPanel>
+
+    </Grid>
+</UserControl>

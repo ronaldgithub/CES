@@ -1,133 +1,44 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:CES.UI.ViewModels"
+        xmlns:views="using:CES.UI.Views"
         x:Class="CES.UI.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="SQL Server 2025 · CES Monitor"
-        Width="960" Height="640"
-        MinWidth="700" MinHeight="400"
+        Width="1024" Height="720"
+        MinWidth="800" MinHeight="500"
         Background="#111827">
 
-    <Grid RowDefinitions="Auto,*,32">
+    <TabControl Background="#111827">
+        <TabControl.Styles>
+            <Style Selector="TabItem">
+                <Setter Property="Background" Value="#1F2937"/>
+                <Setter Property="Foreground" Value="#D1D5DB"/>
+                <Setter Property="FontSize" Value="12.5"/>
+            </Style>
+            <Style Selector="TabItem:selected">
+                <Setter Property="Background" Value="#1E3A5F"/>
+                <Setter Property="Foreground" Value="#F9FAFB"/>
+            </Style>
+        </TabControl.Styles>
 
-        <!-- ── Connection status bar ── -->
-        <Border Grid.Row="0" Background="#1F2937" Padding="16,10">
-            <StackPanel Orientation="Horizontal" Spacing="10">
-                <Ellipse Width="9" Height="9"
-                         Fill="#34D399"
-                         VerticalAlignment="Center"/>
-                <TextBlock Text="{Binding Status}"
-                           Foreground="#D1FAE5"
-                           FontFamily="Consolas,Menlo,monospace"
-                           FontSize="12.5"
-                           VerticalAlignment="Center"/>
-            </StackPanel>
-        </Border>
-
-        <!-- ── Column headers ── -->
-        <Grid Grid.Row="1" RowDefinitions="Auto,*">
-            <Border Grid.Row="0" Background="#1F2937" BorderBrush="#374151" BorderThickness="0,0,0,1" Padding="16,6">
-                <Grid ColumnDefinitions="80,180,130,*">
-                    <TextBlock Grid.Column="0" Text="OP"        Foreground="#6B7280" FontSize="11" FontWeight="SemiBold"/>
-                    <TextBlock Grid.Column="1" Text="TABLE"     Foreground="#6B7280" FontSize="11" FontWeight="SemiBold"/>
-                    <TextBlock Grid.Column="2" Text="TIME"      Foreground="#6B7280" FontSize="11" FontWeight="SemiBold"/>
-                    <TextBlock Grid.Column="3" Text="DETAILS"   Foreground="#6B7280" FontSize="11" FontWeight="SemiBold"/>
-                </Grid>
-            </Border>
-
-            <!-- ── Events list ── -->
-            <ListBox Grid.Row="1"
-                     ItemsSource="{Binding Events}"
-                     Background="#111827"
-                     BorderThickness="0"
-                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                <ListBox.Styles>
-                    <Style Selector="ListBoxItem">
-                        <Setter Property="Padding" Value="0"/>
-                        <Setter Property="Background" Value="Transparent"/>
-                    </Style>
-                    <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
-                        <Setter Property="Background" Value="#1E3A5F"/>
-                    </Style>
-                    <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
-                        <Setter Property="Background" Value="#1F2937"/>
-                    </Style>
-                </ListBox.Styles>
-
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <Border Padding="16,10"
-                                BorderBrush="#1F2937"
-                                BorderThickness="0,0,0,1">
-                            <Grid ColumnDefinitions="80,180,130,*">
-
-                                <!-- Operation badge -->
-                                <Border Grid.Column="0"
-                                        CornerRadius="4"
-                                        Padding="8,3"
-                                        HorizontalAlignment="Left"
-                                        VerticalAlignment="Center"
-                                        Background="{Binding Operation, Converter={StaticResource OpColorConverter}}">
-                                    <TextBlock Text="{Binding Operation}"
-                                               Foreground="#F9FAFB"
-                                               FontWeight="Bold"
-                                               FontSize="11"
-                                               FontFamily="Consolas,Menlo,monospace"/>
-                                </Border>
-
-                                <!-- Table name -->
-                                <TextBlock Grid.Column="1"
-                                           Text="{Binding TableFullName}"
-                                           Foreground="#FCA5A5"
-                                           FontFamily="Consolas,Menlo,monospace"
-                                           FontSize="13"
-                                           VerticalAlignment="Center"/>
-
-                                <!-- Timestamp -->
-                                <TextBlock Grid.Column="2"
-                                           Text="{Binding ReceivedAt, StringFormat={}{0:HH:mm:ss.fff}}"
-                                           Foreground="#93C5FD"
-                                           FontFamily="Consolas,Menlo,monospace"
-                                           FontSize="13"
-                                           VerticalAlignment="Center"/>
-
-                                <!-- PK + customer -->
-                                <StackPanel Grid.Column="3"
-                                            Orientation="Horizontal"
-                                            Spacing="12"
-                                            VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding PrimaryKey}"
-                                               Foreground="#6EE7B7"
-                                               FontFamily="Consolas,Menlo,monospace"
-                                               FontSize="13"
-                                               IsVisible="{Binding PrimaryKey, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
-                                    <TextBlock Text="{Binding CustomerName}"
-                                               Foreground="#D1D5DB"
-                                               FontSize="13"
-                                               IsVisible="{Binding CustomerName, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
-                                </StackPanel>
-
-                            </Grid>
-                        </Border>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
-        </Grid>
-
-        <!-- ── Bottom status bar ── -->
-        <Border Grid.Row="2" Background="#1D4ED8" Padding="16,0">
-            <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Text="Insert / Update / Delete rows in SSMS to see events appear here"
-                           Foreground="#BFDBFE"
-                           FontSize="11.5"
-                           VerticalAlignment="Center"/>
-                <TextBlock Grid.Column="1"
-                           Text="{Binding EventCount, StringFormat={}{0} events received}"
-                           Foreground="#BFDBFE"
-                           FontSize="11.5"
-                           VerticalAlignment="Center"/>
-            </Grid>
-        </Border>
-
-    </Grid>
+        <TabItem Header="Live Feed">
+            <views:LiveFeedView DataContext="{Binding}"/>
+        </TabItem>
+        <TabItem Header="Idempotency &amp; Offsets">
+            <views:IdempotencyView DataContext="{Binding IdempotencyTab}"/>
+        </TabItem>
+        <TabItem Header="Two Consumers">
+            <views:TwoConsumersView DataContext="{Binding TwoConsumersTab}"/>
+        </TabItem>
+        <TabItem Header="Parallel Partitions">
+            <views:ParallelPartitionsView DataContext="{Binding ParallelPartitionsTab}"/>
+        </TabItem>
+        <TabItem Header="Multi-Table Routing">
+            <views:MultiTableView DataContext="{Binding MultiTableTab}"/>
+        </TabItem>
+        <TabItem Header="Batching">
+            <views:BatchingView DataContext="{Binding BatchingTab}"/>
+        </TabItem>
+    </TabControl>
 </Window>

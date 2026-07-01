@@ -13,4 +13,14 @@ public partial class MainWindowViewModel : ObservableObject
     private int _eventCount;
 
     public ObservableCollection<ChangeEvent> Events { get; } = [];
+
+    public IdempotencyTabViewModel IdempotencyTab { get; } = new();
+
+    public TwoConsumersTabViewModel TwoConsumersTab { get; } = new();
+
+    public ParallelPartitionsTabViewModel ParallelPartitionsTab { get; } = new();
+
+    public MultiTableTabViewModel MultiTableTab { get; } = new();
+
+    public BatchingTabViewModel BatchingTab { get; } = new();
 }

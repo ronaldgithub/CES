@@ -2,6 +2,8 @@
 
 A dark-mode Avalonia desktop app that shows SQL Server 2025 Change Event Streaming (CES) events in real time — every INSERT, UPDATE, and DELETE on the `Orders` table appears instantly in the UI, pushed through Azure Event Hubs.
 
+Alongside the live feed, the app ships 5 self-contained scenario-simulation tabs that demonstrate core CES consumer design patterns (idempotency, multiple consumers, parallel partitions, multi-table routing, batching) entirely in-memory — no Event Hub or SQL Server connection required to explore them.
+
 ![CES Monitor screenshot](pictures/)
 
 ---
@@ -225,6 +227,20 @@ Each change appears in the app within a second, colour-coded by operation:
 
 ---
 
+## Scenario Simulation Tabs
+
+The app opens with a tabbed window. Besides **Live Feed** (the real Kafka consumer above), 5 tabs replay the consumer design patterns from `scripts/ces_idempotent.sql` using canned in-memory events — click through them with no Azure or SQL Server connection needed:
+
+| Tab | What it shows |
+| --- | --- |
+| Idempotency & Offsets | A duplicate replayed event is detected via the ledger and skipped — no double-apply |
+| Two Consumers | Two independent consumers (Replication, Analytics) track separate ledgers/offsets without interfering |
+| Parallel Partitions | 4 partition workers each process their own event stream independently |
+| Multi-Table Routing | One shared ledger/offset routes events to the correct target table (`Orders` vs `OrderLines`) |
+| Batching | Events buffer into a batch; the offset updates once per commit, and a simulated mid-batch crash proves replay-safety |
+
+---
+
 ## Project Structure
 
 ```text
@@ -237,12 +253,29 @@ CES/
 │   ├── checkces.sql            # CES status diagnostics
 │   ├── neworder.sql            # Test INSERT
 │   ├── testordersinsert.sql    # Insert/query/delete test harness
-│   └── SQLEventHubTrigger.cs   # Azure Functions reference implementation
+│   ├── SQLEventHubTrigger.cs   # Azure Functions reference implementation
+│   └── ces_idempotent.sql      # Design notes for the 5 scenario tabs
 └── src/CES.UI/
-    ├── Models/ChangeEvent.cs            # Change event record
+    ├── Models/
+    │   ├── ChangeEvent.cs            # Live event record
+    │   ├── SimulatedEvent.cs         # Canned event for scenario tabs
+    │   └── SimulationModels.cs       # LedgerEntry, OffsetEntry
     ├── Services/KafkaConsumerService.cs # Kafka consumer → UI dispatcher
-    ├── ViewModels/MainWindowViewModel.cs
-    └── Views/MainWindow.axaml           # Dark-mode event feed UI
+    ├── ViewModels/
+    │   ├── MainWindowViewModel.cs        # Shell VM — live feed + tab VMs
+    │   ├── IdempotencyTabViewModel.cs
+    │   ├── TwoConsumersTabViewModel.cs
+    │   ├── ParallelPartitionsTabViewModel.cs
+    │   ├── MultiTableTabViewModel.cs
+    │   └── BatchingTabViewModel.cs
+    └── Views/
+        ├── MainWindow.axaml              # TabControl shell
+        ├── LiveFeedView.axaml            # Dark-mode event feed UI
+        ├── IdempotencyView.axaml
+        ├── TwoConsumersView.axaml
+        ├── ParallelPartitionsView.axaml
+        ├── MultiTableView.axaml
+        └── BatchingView.axaml
 ```
 
 ---

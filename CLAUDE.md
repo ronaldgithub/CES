@@ -2,7 +2,7 @@
 
 ## Project
 
-SQL Server 2025 CES Monitor — Avalonia dark-mode desktop app that consumes Change Event Streaming events from Azure Event Hubs and displays them live.
+SQL Server 2025 CES Monitor — Avalonia dark-mode desktop app that consumes Change Event Streaming events from Azure Event Hubs and displays them live. Also includes 5 in-memory scenario-simulation tabs (no Event Hub/SQL Server needed) that demonstrate CES consumer design patterns from `scripts/ces_idempotent.sql` for demos/blog use.
 
 ## Stack
 
@@ -16,11 +16,27 @@ SQL Server 2025 CES Monitor — Avalonia dark-mode desktop app that consumes Cha
 | File | Purpose |
 |---|---|
 | `src/CES.UI/Services/KafkaConsumerService.cs` | Background consumer loop; posts to UI via `Dispatcher.UIThread.Post()` |
-| `src/CES.UI/ViewModels/MainWindowViewModel.cs` | `ObservableCollection<ChangeEvent>` + status string |
-| `src/CES.UI/Views/MainWindow.axaml` | Dark event feed UI — colour-coded INS/UPD/DEL badges |
+| `src/CES.UI/ViewModels/MainWindowViewModel.cs` | Shell VM — `ObservableCollection<ChangeEvent>` + status string, plus one property per scenario tab VM |
+| `src/CES.UI/Views/MainWindow.axaml` | `TabControl` shell — Live Feed + 5 scenario tabs |
+| `src/CES.UI/Views/LiveFeedView.axaml` | Dark event feed UI — colour-coded INS/UPD/DEL badges (moved out of MainWindow) |
 | `src/CES.UI/Converters/OperationColorConverter.cs` | Maps operation string to badge background colour |
 | `scripts/enableces_kafka.sql` | CES setup: credential + stream group → Event Hubs |
 | `scripts/orders_ddl.sql` | Creates `ContosoOrders` DB + `Orders` table |
+| `scripts/ces_idempotent.sql` | Design notes for the 5 consumer scenarios (source of truth for the simulation tabs) |
+
+### Scenario simulation tabs
+
+Each is a standalone in-memory simulation (no Kafka/SQL Server) with its own ViewModel + `UserControl` view. All follow the same pattern: canned `SimulatedEvent`s, an `ObservableCollection<LedgerEntry>` ledger, an `OffsetEntry?` offset, and `[RelayCommand]` buttons that replicate the idempotency-check-then-apply flow directly (no shared "ledger service" — kept inline per tab for readability).
+
+| Tab | ViewModel | Demonstrates |
+| --- | --- | --- |
+| Idempotency & Offsets | `ViewModels/IdempotencyTabViewModel.cs` | Duplicate event replay is detected via the ledger and skipped |
+| Two Consumers | `ViewModels/TwoConsumersTabViewModel.cs` | Independent consumers (`ConsumerState`) keep separate ledgers/offsets |
+| Parallel Partitions | `ViewModels/ParallelPartitionsTabViewModel.cs` | 4 independent partition workers (`PartitionWorkerState`) |
+| Multi-Table Routing | `ViewModels/MultiTableTabViewModel.cs` | One shared ledger/offset routes events to `Orders`/`OrderLines` by table |
+| Batching | `ViewModels/BatchingTabViewModel.cs` | Buffered batch commit updates the offset once; crash simulation proves replay-safety |
+
+`Models/SimulatedEvent.cs` and `Models/SimulationModels.cs` (`LedgerEntry`, `OffsetEntry`) are the shared plain record types used across all 5 tabs.
 
 ## CES JSON payload structure
 

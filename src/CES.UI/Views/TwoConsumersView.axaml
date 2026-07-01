@@ -1,0 +1,81 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:CES.UI.ViewModels"
+             x:Class="CES.UI.Views.TwoConsumersView"
+             x:DataType="vm:TwoConsumersTabViewModel">
+
+    <Grid RowDefinitions="Auto,*" Background="#111827">
+
+        <!-- ── Action bar ── -->
+        <Border Grid.Row="0" Background="#1F2937" Padding="16,10">
+            <Button Content="Reset" Command="{Binding ResetCommand}"/>
+        </Border>
+
+        <!-- ── Two consumer columns ── -->
+        <Grid Grid.Row="1" ColumnDefinitions="*,*" Margin="16">
+
+            <!-- Consumer A -->
+            <StackPanel Grid.Column="0" Margin="0,0,8,0" Spacing="8">
+                <TextBlock Text="{Binding ConsumerA.Name}" Foreground="#D1D5DB" FontWeight="SemiBold" FontSize="13"/>
+                <Button Content="Advance Consumer A" Command="{Binding AdvanceConsumerACommand}"/>
+
+                <Border Background="#1F2937" BorderBrush="#374151" BorderThickness="0,0,0,1" Padding="10,6">
+                    <Grid ColumnDefinitions="80,80,100">
+                        <TextBlock Grid.Column="0" Text="PARTITION" Foreground="#6B7280" FontSize="10" FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="1" Text="SEQ" Foreground="#6B7280" FontSize="10" FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="2" Text="LSN" Foreground="#6B7280" FontSize="10" FontWeight="SemiBold"/>
+                    </Grid>
+                </Border>
+                <ListBox ItemsSource="{Binding ConsumerA.Ledger}" Background="#111827" BorderThickness="0" MaxHeight="220">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Border Padding="10,4" BorderBrush="#1F2937" BorderThickness="0,0,0,1">
+                                <Grid ColumnDefinitions="80,80,100">
+                                    <TextBlock Grid.Column="0" Text="{Binding PartitionId}" Foreground="#D1D5DB" FontFamily="Consolas,Menlo,monospace" FontSize="12"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding SequenceNumber}" Foreground="#6EE7B7" FontFamily="Consolas,Menlo,monospace" FontSize="12"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding CommitLsn}" Foreground="#93C5FD" FontFamily="Consolas,Menlo,monospace" FontSize="12"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <Border Background="#1F2937" CornerRadius="6" Padding="10">
+                    <TextBlock Text="{Binding ConsumerA.OffsetSummary}" Foreground="#6EE7B7" FontFamily="Consolas,Menlo,monospace" FontSize="12.5"/>
+                </Border>
+            </StackPanel>
+
+            <!-- Consumer B -->
+            <StackPanel Grid.Column="1" Margin="8,0,0,0" Spacing="8">
+                <TextBlock Text="{Binding ConsumerB.Name}" Foreground="#D1D5DB" FontWeight="SemiBold" FontSize="13"/>
+                <Button Content="Advance Consumer B" Command="{Binding AdvanceConsumerBCommand}"/>
+
+                <Border Background="#1F2937" BorderBrush="#374151" BorderThickness="0,0,0,1" Padding="10,6">
+                    <Grid ColumnDefinitions="80,80,100">
+                        <TextBlock Grid.Column="0" Text="PARTITION" Foreground="#6B7280" FontSize="10" FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="1" Text="SEQ" Foreground="#6B7280" FontSize="10" FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="2" Text="LSN" Foreground="#6B7280" FontSize="10" FontWeight="SemiBold"/>
+                    </Grid>
+                </Border>
+                <ListBox ItemsSource="{Binding ConsumerB.Ledger}" Background="#111827" BorderThickness="0" MaxHeight="220">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Border Padding="10,4" BorderBrush="#1F2937" BorderThickness="0,0,0,1">
+                                <Grid ColumnDefinitions="80,80,100">
+                                    <TextBlock Grid.Column="0" Text="{Binding PartitionId}" Foreground="#D1D5DB" FontFamily="Consolas,Menlo,monospace" FontSize="12"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding SequenceNumber}" Foreground="#6EE7B7" FontFamily="Consolas,Menlo,monospace" FontSize="12"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding CommitLsn}" Foreground="#93C5FD" FontFamily="Consolas,Menlo,monospace" FontSize="12"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <Border Background="#1F2937" CornerRadius="6" Padding="10">
+                    <TextBlock Text="{Binding ConsumerB.OffsetSummary}" Foreground="#6EE7B7" FontFamily="Consolas,Menlo,monospace" FontSize="12.5"/>
+                </Border>
+            </StackPanel>
+
+        </Grid>
+    </Grid>
+</UserControl>

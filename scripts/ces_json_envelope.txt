@@ -1,0 +1,23 @@
+{
+  "specversion": "1.0",
+  "type": "com.microsoft.sqlserver.rowchange",
+  "source": "/db/YourSourceDb/tables/dbo.Orders",
+  "id": "....",
+  "time": "2026-07-01T10:00:00Z",
+  "data": {
+    "operation": "UPDATE",
+    "schema": "dbo",
+    "table": "Orders",
+    "primaryKey": { "OrderID": 123 },
+    "before": { "Status": "Pending" },
+    "after": {
+      "OrderID": 123,
+      "CustomerID": 42,
+      "OrderDate": "2026-07-01T09:55:00Z",
+      "Status": "Shipped",
+      "TotalAmount": 199.95
+    },
+    "commitLsn": "00000023:000001a0:0001",
+    "transactionId": "..."
+  }
+}

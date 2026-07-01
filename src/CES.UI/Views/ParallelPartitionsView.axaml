@@ -1,0 +1,69 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:CES.UI.ViewModels"
+             x:Class="CES.UI.Views.ParallelPartitionsView"
+             x:DataType="vm:ParallelPartitionsTabViewModel">
+
+    <Grid RowDefinitions="Auto,*,Auto" Background="#111827">
+
+        <!-- ── Action bar ── -->
+        <Border Grid.Row="0" Background="#1F2937" Padding="16,10">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <Button Content="Process Next Event (all partitions)" Command="{Binding ProcessNextForAllCommand}"/>
+                <Button Content="Reset" Command="{Binding ResetCommand}"/>
+            </StackPanel>
+        </Border>
+
+        <!-- ── 2x2 partition cards ── -->
+        <ItemsControl Grid.Row="1" ItemsSource="{Binding Partitions}" Margin="16">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <UniformGrid Columns="2" Rows="2"/>
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Border Background="#1F2937" CornerRadius="6" Padding="12" Margin="6">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="{Binding PartitionId, StringFormat='Partition {0}'}"
+                                       Foreground="#D1D5DB" FontWeight="SemiBold" FontSize="13"/>
+
+                            <Border Background="#111827" BorderBrush="#374151" BorderThickness="0,0,0,1" Padding="8,4">
+                                <Grid ColumnDefinitions="70,70,90">
+                                    <TextBlock Grid.Column="0" Text="SEQ" Foreground="#6B7280" FontSize="10" FontWeight="SemiBold"/>
+                                    <TextBlock Grid.Column="1" Text="OP" Foreground="#6B7280" FontSize="10" FontWeight="SemiBold"/>
+                                    <TextBlock Grid.Column="2" Text="LSN" Foreground="#6B7280" FontSize="10" FontWeight="SemiBold"/>
+                                </Grid>
+                            </Border>
+
+                            <ItemsControl ItemsSource="{Binding Ledger}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid ColumnDefinitions="70,70,90" Margin="8,2">
+                                            <TextBlock Grid.Column="0" Text="{Binding SequenceNumber}" Foreground="#6EE7B7" FontFamily="Consolas,Menlo,monospace" FontSize="11.5"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding CommitLsn}" Foreground="#93C5FD" FontFamily="Consolas,Menlo,monospace" FontSize="11.5"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="{Binding OffsetSummary}" Foreground="#6EE7B7" FontFamily="Consolas,Menlo,monospace" FontSize="11.5"/>
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- ── Log ── -->
+        <Border Grid.Row="2" Background="#1D4ED8" Padding="16,8" MinHeight="32">
+            <ItemsControl ItemsSource="{Binding Log}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}" Foreground="#BFDBFE" FontSize="11.5"/>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Border>
+
+    </Grid>
+</UserControl>
