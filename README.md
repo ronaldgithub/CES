@@ -365,8 +365,7 @@ CES/
 │   ├── enableces_kafka.sql     # CES → Event Hubs configuration
 │   ├── checkces.sql            # CES status diagnostics
 │   ├── neworder.sql            # Test INSERT
-│   ├── testordersinsert.sql    # Insert/query/delete test harness
-│   └── SQLEventHubTrigger.cs   # Azure Functions reference implementation
+│   └── testordersinsert.sql    # Insert/query/delete test harness
 └── src/CES.UI/
     ├── Models/
     │   ├── ChangeEvent.cs            # Live event record
