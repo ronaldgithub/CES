@@ -4,7 +4,7 @@ A dark-mode Avalonia desktop app that shows SQL Server 2025 Change Event Streami
 
 Alongside the live feed, the app ships 5 self-contained scenario-simulation tabs that demonstrate core CES consumer design patterns (idempotency, multiple consumers, parallel partitions, multi-table routing, batching) entirely in-memory — no Event Hub or SQL Server connection required to explore them.
 
-![CES Monitor screenshot](pictures/live_feed.jpg)
+![CES Monitor screenshot](pictures/app_live_feed.jpg)
 
 ---
 
@@ -319,7 +319,7 @@ The app opens with a tabbed window. Besides **Live Feed** (the real Kafka consum
 
 The **Two Consumers (Live)** tab is the real version of the Two Consumers simulation: two actual Kafka consumers, each with its own Event Hubs consumer group, applying the same CES stream to its own destination database with the ledger + offset pattern from `docs/ces_idempotent.sql`.
 
-![Two Consumers Live screenshot](pictures/two_consumers_with_ledgers.jpg)
+![Two Consumers Live screenshot](pictures/app_two_consumers_with_ledgers.jpg)
 
 ### Extra setup
 
