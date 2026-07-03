@@ -2,7 +2,7 @@
 -- Destination databases for the "Two Consumers (Live)" tab.
 -- Two independent consumers each apply the same CES stream to
 -- their own copy of Orders, tracked by a private ledger + offset
--- store (the pattern from ces_idempotent.sql).
+-- store (the pattern from docs/ces_idempotent.sql).
 --
 -- WARNING: drops and recreates both databases.
 -- ============================================================

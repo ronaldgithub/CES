@@ -2,7 +2,7 @@
 
 ## Project
 
-SQL Server 2025 CES Monitor — Avalonia dark-mode desktop app that consumes Change Event Streaming events from Azure Event Hubs and displays them live. Also includes 5 in-memory scenario-simulation tabs (no Event Hub/SQL Server needed) that demonstrate CES consumer design patterns from `scripts/ces_idempotent.sql`, plus a "Two Consumers (Live)" tab where two real consumers apply the stream to local destination databases.
+SQL Server 2025 CES Monitor — Avalonia dark-mode desktop app that consumes Change Event Streaming events from Azure Event Hubs and displays them live. Also includes 5 in-memory scenario-simulation tabs (no Event Hub/SQL Server needed) that demonstrate CES consumer design patterns from `docs/ces_idempotent.sql`, plus a "Two Consumers (Live)" tab where two real consumers apply the stream to local destination databases.
 
 ## Stack
 
@@ -25,7 +25,7 @@ SQL Server 2025 CES Monitor — Avalonia dark-mode desktop app that consumes Cha
 | `scripts/enableces_kafka.sql` | CES setup: credential + stream group → Event Hubs |
 | `scripts/orders_ddl.sql` | Creates `ContosoOrders` DB + `Orders` table |
 | `scripts/destinations_ddl.sql` | Creates `CES_Destination1`/`CES_Destination2` (Orders copy + `ces_ledger` + `ces_offsets`) for the live tab |
-| `scripts/ces_idempotent.sql` | Design notes for the 5 consumer scenarios (source of truth for the simulation tabs) |
+| `docs/ces_idempotent.sql` | Design notes for the 5 consumer scenarios (source of truth for the simulation tabs) — not a runnable script |
 
 ### Scenario simulation tabs
 

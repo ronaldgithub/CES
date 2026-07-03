@@ -12,7 +12,7 @@ namespace CES.UI.Services;
 /// <summary>
 /// A real CES consumer: reads the orders Event Hub through its own consumer group
 /// and applies each event to a destination database using the ledger + offset
-/// pattern from scripts/ces_idempotent.sql.
+/// pattern from docs/ces_idempotent.sql.
 ///
 /// Kafka offsets are deliberately never committed (EnableAutoCommit = false), so
 /// every Start replays the stream from the beginning — the ces_ledger table is
@@ -99,7 +99,7 @@ public class LiveConsumerService(LiveConsumerState state)
     }
 
     // Idempotency-check-then-apply in a single transaction, exactly as designed in
-    // scripts/ces_idempotent.sql: ledger check → DML → ledger insert → offset upsert.
+    // docs/ces_idempotent.sql: ledger check → DML → ledger insert → offset upsert.
     private static async Task<bool> ApplyAsync(
         SqlConnection conn, ParsedOrderEvent ev, int partitionId, long sequenceNumber,
         CancellationToken cancellationToken)

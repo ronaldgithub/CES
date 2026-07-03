@@ -304,7 +304,7 @@ If you see `InvalidSignature: The token has an invalid signature`, the SQL crede
 
 ## Scenario Simulation Tabs
 
-The app opens with a tabbed window. Besides **Live Feed** (the real Kafka consumer above), 5 tabs replay the consumer design patterns from `scripts/ces_idempotent.sql` using canned in-memory events — click through them with no Azure or SQL Server connection needed:
+The app opens with a tabbed window. Besides **Live Feed** (the real Kafka consumer above), 5 tabs replay the consumer design patterns from `docs/ces_idempotent.sql` using canned in-memory events — click through them with no Azure or SQL Server connection needed:
 
 | Tab | What it shows |
 | --- | --- |
@@ -318,7 +318,7 @@ The app opens with a tabbed window. Besides **Live Feed** (the real Kafka consum
 
 ## Two Consumers (Live)
 
-The **Two Consumers (Live)** tab is the real version of the Two Consumers simulation: two actual Kafka consumers, each with its own Event Hubs consumer group, applying the same CES stream to its own destination database with the ledger + offset pattern from `scripts/ces_idempotent.sql`.
+The **Two Consumers (Live)** tab is the real version of the Two Consumers simulation: two actual Kafka consumers, each with its own Event Hubs consumer group, applying the same CES stream to its own destination database with the ledger + offset pattern from `docs/ces_idempotent.sql`.
 
 ![Two Consumers Live screenshot](pictures/two_consumers_with_ledgers.jpg)
 
@@ -357,6 +357,8 @@ Try it: Start both consumers, insert a row in `ContosoOrders` (`scripts/neworder
 CES/
 ├── docker-compose.yml          # Redpanda (local Kafka — for future use)
 ├── set-env.local.ps1           # Local secrets (gitignored)
+├── docs/
+│   └── ces_idempotent.sql      # Design notes for the 5 scenario tabs (not runnable)
 ├── scripts/
 │   ├── orders_ddl.sql          # Database + table setup
 │   ├── destinations_ddl.sql    # CES_Destination1/2 for the live consumers
@@ -364,8 +366,7 @@ CES/
 │   ├── checkces.sql            # CES status diagnostics
 │   ├── neworder.sql            # Test INSERT
 │   ├── testordersinsert.sql    # Insert/query/delete test harness
-│   ├── SQLEventHubTrigger.cs   # Azure Functions reference implementation
-│   └── ces_idempotent.sql      # Design notes for the 5 scenario tabs
+│   └── SQLEventHubTrigger.cs   # Azure Functions reference implementation
 └── src/CES.UI/
     ├── Models/
     │   ├── ChangeEvent.cs            # Live event record
