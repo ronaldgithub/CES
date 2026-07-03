@@ -31,6 +31,9 @@
         <TabItem Header="Two Consumers">
             <views:TwoConsumersView DataContext="{Binding TwoConsumersTab}"/>
         </TabItem>
+        <TabItem Header="Two Consumers (Live)">
+            <views:TwoConsumersLiveView DataContext="{Binding TwoConsumersLiveTab}"/>
+        </TabItem>
         <TabItem Header="Parallel Partitions">
             <views:ParallelPartitionsView DataContext="{Binding ParallelPartitionsTab}"/>
         </TabItem>

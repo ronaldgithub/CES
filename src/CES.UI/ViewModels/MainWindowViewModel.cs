@@ -18,6 +18,8 @@ public partial class MainWindowViewModel : ObservableObject
 
     public TwoConsumersTabViewModel TwoConsumersTab { get; } = new();
 
+    public TwoConsumersLiveTabViewModel TwoConsumersLiveTab { get; } = new();
+
     public ParallelPartitionsTabViewModel ParallelPartitionsTab { get; } = new();
 
     public MultiTableTabViewModel MultiTableTab { get; } = new();

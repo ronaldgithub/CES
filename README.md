@@ -119,10 +119,13 @@ SQL Server 2025
        ▼
 Azure Event Hubs (ces-poc / orders)
        │  Kafka protocol (port 9093, SASL/SSL)
-       ▼
-Avalonia dark-mode app
-  └─ Live event feed (INS / UPD / DEL)
+       │
+       ├─ consumer group $Default   → Live Feed tab (display only)
+       ├─ consumer group consumer1  → CES_Destination1 (Two Consumers Live)
+       └─ consumer group consumer2  → CES_Destination2 (Two Consumers Live)
 ```
+
+One stream, three independent readers — Event Hubs fan-out. The Live Feed only displays events; the two live consumers apply them to their own destination database using a ledger + offset store for exactly-once semantics.
 
 ---
 
@@ -227,6 +230,78 @@ Each change appears in the app within a second, colour-coded by operation:
 
 ---
 
+## Deleting & Recreating the Azure Resources
+
+To save money, the resource group (`ces-poc-rg`) can be deleted when not in use and recreated later — the whole Azure side rebuilds in a couple of minutes. But recreating the namespace generates a **new SAS key**, and SQL Server will keep silently failing with the old one. Symptom: the app connects fine, inserts succeed, but **no events appear**.
+
+Check the CES error log to confirm:
+
+```sql
+USE [ContosoOrders];
+SELECT TOP 10 entry_time, error_number, error_message
+FROM sys.dm_change_feed_errors
+ORDER BY entry_time DESC;
+```
+
+If you see `InvalidSignature: The token has an invalid signature`, the SQL credential still holds the old key. Recovery steps:
+
+1. **Recreate the Azure resources** — follow [Setup step 1](#1--azure-event-hubs-detailed) again (same namespace name `ces-poc`, same hub name `orders`, Standard tier), or do it in one go with the Azure CLI:
+
+   ```powershell
+   az group create --name ces-poc-rg --location westeurope
+
+   az eventhubs namespace create --resource-group ces-poc-rg --name ces-poc `
+       --location westeurope --sku Standard
+
+   az eventhubs eventhub create --resource-group ces-poc-rg `
+       --namespace-name ces-poc --name orders
+
+   # Prints the new connection string (for set-env.local.ps1)
+   # and primary key (for the SQL credential)
+   az eventhubs namespace authorization-rule keys list `
+       --resource-group ces-poc-rg --namespace-name ces-poc `
+       --name RootManageSharedAccessKey `
+       --query "{connectionString: primaryConnectionString, primaryKey: primaryKey}"
+   ```
+
+   And when you're done, tear everything down with:
+
+   ```powershell
+   az group delete --name ces-poc-rg --yes
+   ```
+
+2. **Update `set-env.local.ps1`** with the new Primary connection string (Shared access policies → RootManageSharedAccessKey).
+3. **Update the SQL credential** with the new Primary key:
+
+   ```sql
+   USE [ContosoOrders];
+   ALTER DATABASE SCOPED CREDENTIAL eventhubscred
+   WITH IDENTITY = 'RootManageSharedAccessKey',
+        SECRET   = '<new-primary-key>';
+   ```
+
+4. **Recreate the stream group** — this step is essential. CES caches the signed SAS token, so updating the credential alone is **not** enough; the `InvalidSignature` errors keep coming until the stream group is restarted:
+
+   ```sql
+   EXEC sys.sp_drop_event_stream_group N'OrdersCESGroupKafka';
+
+   EXEC sys.sp_create_event_stream_group
+       @stream_group_name      = N'OrdersCESGroupKafka',
+       @destination_type       = N'AzureEventHubsAmqp',
+       @destination_location   = N'ces-poc.servicebus.windows.net/orders',
+       @destination_credential = eventhubscred;
+
+   EXEC sys.sp_add_object_to_event_stream_group N'OrdersCESGroupKafka', N'dbo.Orders';
+   ```
+
+   (Or simply re-run `scripts/enableces_kafka.sql` with the new key filled in — it does all of the above.)
+
+5. **Verify** — insert a row (`scripts/neworder.sql`), then check that `sys.dm_change_feed_errors` shows no new rows and the event appears in the app.
+
+> **Note:** because SQL Server (not the app) restarts publishing from the stream group's creation point, events that failed to deliver while the key was wrong are not replayed — only changes committed after the stream group is recreated flow through.
+
+---
+
 ## Scenario Simulation Tabs
 
 The app opens with a tabbed window. Besides **Live Feed** (the real Kafka consumer above), 5 tabs replay the consumer design patterns from `scripts/ces_idempotent.sql` using canned in-memory events — click through them with no Azure or SQL Server connection needed:
@@ -241,6 +316,41 @@ The app opens with a tabbed window. Besides **Live Feed** (the real Kafka consum
 
 ---
 
+## Two Consumers (Live)
+
+The **Two Consumers (Live)** tab is the real version of the Two Consumers simulation: two actual Kafka consumers, each with its own Event Hubs consumer group, applying the same CES stream to its own destination database with the ledger + offset pattern from `scripts/ces_idempotent.sql`.
+
+![Two Consumers Live screenshot](pictures/two_consumers_with_ledgers.jpg)
+
+### Extra setup
+
+1. **Destination databases** — run `scripts/destinations_ddl.sql` once. It creates `CES_Destination1` and `CES_Destination2`, each with a copy of `Orders` plus the `ces_ledger` and `ces_offsets` tables.
+2. **Consumer groups** — add `consumer1` and `consumer2` to the `orders` hub (the Kafka `group.id` maps to an Event Hubs consumer group; the Live Feed keeps `$Default`):
+
+   ```powershell
+   az eventhubs eventhub consumer-group create --resource-group ces-poc-rg `
+       --namespace-name ces-poc --eventhub-name orders --name consumer1
+   az eventhubs eventhub consumer-group create --resource-group ces-poc-rg `
+       --namespace-name ces-poc --eventhub-name orders --name consumer2
+   ```
+
+   (Portal: Event Hub `orders` → Consumer groups → + Consumer group.)
+
+### How it works
+
+For every event, the consumer runs a single SQL transaction against its destination database:
+
+1. Check `ces_ledger` for `(partition_id, sequence_number)` — if present, the event is a **duplicate** and is skipped
+2. Apply the DML: `MERGE` into `Orders` for INS/UPD (with `IDENTITY_INSERT`, so OrderIDs match the source), `DELETE` for DEL
+3. Insert the ledger row and upsert `ces_offsets`
+4. Commit
+
+The Kafka offset is deliberately **never committed** — every Start replays the full stream from the beginning. That is the demo: the first Start applies everything; Stop + Start again and every event comes back as *duplicate — skipped* while the destination data stays correct. Exactly-once semantics live in the destination database, not in the transport.
+
+Try it: Start both consumers, insert a row in `ContosoOrders` (`scripts/neworder.sql`), and watch it apply to both databases. Then restart one consumer and watch the ledger reject the entire replay.
+
+---
+
 ## Project Structure
 
 ```text
@@ -249,6 +359,7 @@ CES/
 ├── set-env.local.ps1           # Local secrets (gitignored)
 ├── scripts/
 │   ├── orders_ddl.sql          # Database + table setup
+│   ├── destinations_ddl.sql    # CES_Destination1/2 for the live consumers
 │   ├── enableces_kafka.sql     # CES → Event Hubs configuration
 │   ├── checkces.sql            # CES status diagnostics
 │   ├── neworder.sql            # Test INSERT
@@ -258,13 +369,17 @@ CES/
 └── src/CES.UI/
     ├── Models/
     │   ├── ChangeEvent.cs            # Live event record
+    │   ├── LiveApplyEntry.cs         # Applied/duplicate log entry (live consumers)
     │   ├── SimulatedEvent.cs         # Canned event for scenario tabs
     │   └── SimulationModels.cs       # LedgerEntry, OffsetEntry
-    ├── Services/KafkaConsumerService.cs # Kafka consumer → UI dispatcher
+    ├── Services/
+    │   ├── KafkaConsumerService.cs   # Kafka consumer → UI dispatcher (Live Feed)
+    │   └── LiveConsumerService.cs    # Kafka consumer → idempotent SQL apply
     ├── ViewModels/
     │   ├── MainWindowViewModel.cs        # Shell VM — live feed + tab VMs
     │   ├── IdempotencyTabViewModel.cs
     │   ├── TwoConsumersTabViewModel.cs
+    │   ├── TwoConsumersLiveTabViewModel.cs
     │   ├── ParallelPartitionsTabViewModel.cs
     │   ├── MultiTableTabViewModel.cs
     │   └── BatchingTabViewModel.cs
@@ -273,6 +388,7 @@ CES/
         ├── LiveFeedView.axaml            # Dark-mode event feed UI
         ├── IdempotencyView.axaml
         ├── TwoConsumersView.axaml
+        ├── TwoConsumersLiveView.axaml
         ├── ParallelPartitionsView.axaml
         ├── MultiTableView.axaml
         └── BatchingView.axaml

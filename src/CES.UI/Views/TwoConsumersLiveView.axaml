@@ -1,0 +1,120 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:CES.UI.ViewModels"
+             x:Class="CES.UI.Views.TwoConsumersLiveView"
+             x:DataType="vm:TwoConsumersLiveTabViewModel">
+
+    <Grid RowDefinitions="Auto,*" Background="#111827">
+
+        <!-- ── Explainer bar ── -->
+        <Border Grid.Row="0" Background="#1F2937" Padding="16,10">
+            <TextBlock Foreground="#9CA3AF" FontSize="12" TextWrapping="Wrap"
+                       Text="Two real consumers, each with its own Event Hubs consumer group and destination database. Kafka offsets are never committed, so every Start replays the full stream — the ces_ledger table makes the replay safe."/>
+        </Border>
+
+        <!-- ── Two consumer columns ── -->
+        <Grid Grid.Row="1" ColumnDefinitions="*,*" Margin="16">
+
+            <!-- Consumer 1 -->
+            <Grid Grid.Column="0" Margin="0,0,8,0" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto">
+                <TextBlock Grid.Row="0" Text="{Binding Consumer1.Name}" Foreground="#D1D5DB" FontWeight="SemiBold" FontSize="13"/>
+                <TextBlock Grid.Row="1" Text="{Binding Consumer1.Subtitle}" Foreground="#6B7280" FontFamily="Consolas,Menlo,monospace" FontSize="11" Margin="0,2,0,8"/>
+
+                <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+                    <Button Content="Start" Command="{Binding Consumer1.StartCommand}"/>
+                    <Button Content="Stop" Command="{Binding Consumer1.StopCommand}"/>
+                    <TextBlock Text="{Binding Consumer1.Status}" Foreground="#93C5FD" FontFamily="Consolas,Menlo,monospace" FontSize="11.5" VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="16" Margin="0,0,0,8">
+                    <TextBlock Text="{Binding Consumer1.AppliedCount, StringFormat={}{0} applied}" Foreground="#6EE7B7" FontFamily="Consolas,Menlo,monospace" FontSize="12"/>
+                    <TextBlock Text="{Binding Consumer1.DuplicateCount, StringFormat={}{0} duplicates skipped}" Foreground="#FBBF24" FontFamily="Consolas,Menlo,monospace" FontSize="12"/>
+                </StackPanel>
+
+                <Border Grid.Row="4" Background="#1F2937" BorderBrush="#374151" BorderThickness="0,0,0,1" Padding="10,6">
+                    <Grid ColumnDefinitions="55,55,110,*,70">
+                        <TextBlock Grid.Column="0" Text="OP" Foreground="#6B7280" FontSize="10" FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="1" Text="SEQ" Foreground="#6B7280" FontSize="10" FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="2" Text="KEY" Foreground="#6B7280" FontSize="10" FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="3" Text="RESULT" Foreground="#6B7280" FontSize="10" FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="4" Text="TIME" Foreground="#6B7280" FontSize="10" FontWeight="SemiBold"/>
+                    </Grid>
+                </Border>
+                <ListBox Grid.Row="5" ItemsSource="{Binding Consumer1.Log}" Background="#111827" BorderThickness="0">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Border Padding="10,4" BorderBrush="#1F2937" BorderThickness="0,0,0,1">
+                                <Grid ColumnDefinitions="55,55,110,*,70">
+                                    <Border Grid.Column="0" CornerRadius="3" Padding="5,1" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                            Background="{Binding Operation, Converter={StaticResource OpColorConverter}}">
+                                        <TextBlock Text="{Binding Operation}" Foreground="#F9FAFB" FontWeight="Bold" FontSize="10" FontFamily="Consolas,Menlo,monospace"/>
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Text="{Binding SequenceNumber}" Foreground="#6EE7B7" FontFamily="Consolas,Menlo,monospace" FontSize="12" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding Key}" Foreground="#D1D5DB" FontFamily="Consolas,Menlo,monospace" FontSize="12" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="3" Text="applied" Foreground="#6EE7B7" FontFamily="Consolas,Menlo,monospace" FontSize="12" VerticalAlignment="Center" IsVisible="{Binding IsApplied}"/>
+                                    <TextBlock Grid.Column="3" Text="duplicate — skipped" Foreground="#FBBF24" FontFamily="Consolas,Menlo,monospace" FontSize="12" VerticalAlignment="Center" IsVisible="{Binding !IsApplied}"/>
+                                    <TextBlock Grid.Column="4" Text="{Binding Time, StringFormat={}{0:HH:mm:ss}}" Foreground="#93C5FD" FontFamily="Consolas,Menlo,monospace" FontSize="12" VerticalAlignment="Center"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <Border Grid.Row="6" Background="#1F2937" CornerRadius="6" Padding="10" Margin="0,8,0,0">
+                    <TextBlock Text="{Binding Consumer1.OffsetSummary}" Foreground="#6EE7B7" FontFamily="Consolas,Menlo,monospace" FontSize="12.5"/>
+                </Border>
+            </Grid>
+
+            <!-- Consumer 2 -->
+            <Grid Grid.Column="1" Margin="8,0,0,0" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto">
+                <TextBlock Grid.Row="0" Text="{Binding Consumer2.Name}" Foreground="#D1D5DB" FontWeight="SemiBold" FontSize="13"/>
+                <TextBlock Grid.Row="1" Text="{Binding Consumer2.Subtitle}" Foreground="#6B7280" FontFamily="Consolas,Menlo,monospace" FontSize="11" Margin="0,2,0,8"/>
+
+                <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+                    <Button Content="Start" Command="{Binding Consumer2.StartCommand}"/>
+                    <Button Content="Stop" Command="{Binding Consumer2.StopCommand}"/>
+                    <TextBlock Text="{Binding Consumer2.Status}" Foreground="#93C5FD" FontFamily="Consolas,Menlo,monospace" FontSize="11.5" VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="16" Margin="0,0,0,8">
+                    <TextBlock Text="{Binding Consumer2.AppliedCount, StringFormat={}{0} applied}" Foreground="#6EE7B7" FontFamily="Consolas,Menlo,monospace" FontSize="12"/>
+                    <TextBlock Text="{Binding Consumer2.DuplicateCount, StringFormat={}{0} duplicates skipped}" Foreground="#FBBF24" FontFamily="Consolas,Menlo,monospace" FontSize="12"/>
+                </StackPanel>
+
+                <Border Grid.Row="4" Background="#1F2937" BorderBrush="#374151" BorderThickness="0,0,0,1" Padding="10,6">
+                    <Grid ColumnDefinitions="55,55,110,*,70">
+                        <TextBlock Grid.Column="0" Text="OP" Foreground="#6B7280" FontSize="10" FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="1" Text="SEQ" Foreground="#6B7280" FontSize="10" FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="2" Text="KEY" Foreground="#6B7280" FontSize="10" FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="3" Text="RESULT" Foreground="#6B7280" FontSize="10" FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="4" Text="TIME" Foreground="#6B7280" FontSize="10" FontWeight="SemiBold"/>
+                    </Grid>
+                </Border>
+                <ListBox Grid.Row="5" ItemsSource="{Binding Consumer2.Log}" Background="#111827" BorderThickness="0">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Border Padding="10,4" BorderBrush="#1F2937" BorderThickness="0,0,0,1">
+                                <Grid ColumnDefinitions="55,55,110,*,70">
+                                    <Border Grid.Column="0" CornerRadius="3" Padding="5,1" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                            Background="{Binding Operation, Converter={StaticResource OpColorConverter}}">
+                                        <TextBlock Text="{Binding Operation}" Foreground="#F9FAFB" FontWeight="Bold" FontSize="10" FontFamily="Consolas,Menlo,monospace"/>
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Text="{Binding SequenceNumber}" Foreground="#6EE7B7" FontFamily="Consolas,Menlo,monospace" FontSize="12" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding Key}" Foreground="#D1D5DB" FontFamily="Consolas,Menlo,monospace" FontSize="12" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="3" Text="applied" Foreground="#6EE7B7" FontFamily="Consolas,Menlo,monospace" FontSize="12" VerticalAlignment="Center" IsVisible="{Binding IsApplied}"/>
+                                    <TextBlock Grid.Column="3" Text="duplicate — skipped" Foreground="#FBBF24" FontFamily="Consolas,Menlo,monospace" FontSize="12" VerticalAlignment="Center" IsVisible="{Binding !IsApplied}"/>
+                                    <TextBlock Grid.Column="4" Text="{Binding Time, StringFormat={}{0:HH:mm:ss}}" Foreground="#93C5FD" FontFamily="Consolas,Menlo,monospace" FontSize="12" VerticalAlignment="Center"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <Border Grid.Row="6" Background="#1F2937" CornerRadius="6" Padding="10" Margin="0,8,0,0">
+                    <TextBlock Text="{Binding Consumer2.OffsetSummary}" Foreground="#6EE7B7" FontFamily="Consolas,Menlo,monospace" FontSize="12.5"/>
+                </Border>
+            </Grid>
+
+        </Grid>
+    </Grid>
+</UserControl>

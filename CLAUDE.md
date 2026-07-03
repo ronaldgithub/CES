@@ -2,7 +2,7 @@
 
 ## Project
 
-SQL Server 2025 CES Monitor — Avalonia dark-mode desktop app that consumes Change Event Streaming events from Azure Event Hubs and displays them live. Also includes 5 in-memory scenario-simulation tabs (no Event Hub/SQL Server needed) that demonstrate CES consumer design patterns from `scripts/ces_idempotent.sql` for demos/blog use.
+SQL Server 2025 CES Monitor — Avalonia dark-mode desktop app that consumes Change Event Streaming events from Azure Event Hubs and displays them live. Also includes 5 in-memory scenario-simulation tabs (no Event Hub/SQL Server needed) that demonstrate CES consumer design patterns from `scripts/ces_idempotent.sql`, plus a "Two Consumers (Live)" tab where two real consumers apply the stream to local destination databases.
 
 ## Stack
 
@@ -10,18 +10,21 @@ SQL Server 2025 CES Monitor — Avalonia dark-mode desktop app that consumes Cha
 - **MVVM**: CommunityToolkit.Mvvm (`[ObservableProperty]` source generators)
 - **Kafka consumer**: Confluent.Kafka 2.8 connecting to Azure Event Hubs Kafka endpoint (port 9093, SASL/SSL)
 - **Event parsing**: System.Text.Json — no CloudNative.CloudEvents package needed; CES emits raw JSON
+- **SQL apply**: Microsoft.Data.SqlClient 7 — live consumers write to local SQL Server (`Server=localhost;Integrated Security=True;TrustServerCertificate=True`)
 
 ## Key files
 
 | File | Purpose |
 |---|---|
-| `src/CES.UI/Services/KafkaConsumerService.cs` | Background consumer loop; posts to UI via `Dispatcher.UIThread.Post()` |
+| `src/CES.UI/Services/KafkaConsumerService.cs` | Background consumer loop (Live Feed, display only); posts to UI via `Dispatcher.UIThread.Post()` |
+| `src/CES.UI/Services/LiveConsumerService.cs` | Real consumer for the live tab: Kafka → single-transaction idempotent apply (ledger check → MERGE/DELETE with `IDENTITY_INSERT` → ledger insert → offset upsert) |
 | `src/CES.UI/ViewModels/MainWindowViewModel.cs` | Shell VM — `ObservableCollection<ChangeEvent>` + status string, plus one property per scenario tab VM |
 | `src/CES.UI/Views/MainWindow.axaml` | `TabControl` shell — Live Feed + 5 scenario tabs |
 | `src/CES.UI/Views/LiveFeedView.axaml` | Dark event feed UI — colour-coded INS/UPD/DEL badges (moved out of MainWindow) |
 | `src/CES.UI/Converters/OperationColorConverter.cs` | Maps operation string to badge background colour |
 | `scripts/enableces_kafka.sql` | CES setup: credential + stream group → Event Hubs |
 | `scripts/orders_ddl.sql` | Creates `ContosoOrders` DB + `Orders` table |
+| `scripts/destinations_ddl.sql` | Creates `CES_Destination1`/`CES_Destination2` (Orders copy + `ces_ledger` + `ces_offsets`) for the live tab |
 | `scripts/ces_idempotent.sql` | Design notes for the 5 consumer scenarios (source of truth for the simulation tabs) |
 
 ### Scenario simulation tabs
@@ -37,6 +40,10 @@ Each is a standalone in-memory simulation (no Kafka/SQL Server) with its own Vie
 | Batching | `ViewModels/BatchingTabViewModel.cs` | Buffered batch commit updates the offset once; crash simulation proves replay-safety |
 
 `Models/SimulatedEvent.cs` and `Models/SimulationModels.cs` (`LedgerEntry`, `OffsetEntry`) are the shared plain record types used across all 5 tabs.
+
+### Two Consumers (Live) tab
+
+`ViewModels/TwoConsumersLiveTabViewModel.cs` (+ `Views/TwoConsumersLiveView.axaml`, `Models/LiveApplyEntry.cs`) hosts two `LiveConsumerState` panels, each starting a `LiveConsumerService`: consumer group `consumer1` → `CES_Destination1`, `consumer2` → `CES_Destination2`. Kafka offsets are deliberately never committed (`EnableAutoCommit = false`), so every Start replays the full stream and the `ces_ledger` table proves replay-safety — exactly-once lives in the destination DB, not the transport.
 
 ## CES JSON payload structure
 
@@ -81,7 +88,7 @@ dotnet run --project src\CES.UI
 
 - Namespace: `ces-poc.servicebus.windows.net`
 - Event Hub: `orders`
-- Consumer group: `$Default`
+- Consumer groups: `$Default` (Live Feed), `consumer1`/`consumer2` (Two Consumers Live)
 - Protocol: Kafka (port 9093, SASL/SSL, username `$ConnectionString`)
 
 ## SQL Server CES config
