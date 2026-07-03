@@ -179,20 +179,19 @@ One stream, three independent readers — Event Hubs fan-out. The Live Feed only
 
 ### 2 — SQL Server
 
-Run these scripts in SSMS **in order**:
+Everything on the SQL Server side lives in one script: [scripts/ces_demo.sql](scripts/ces_demo.sql), organised in numbered parts:
 
 ```text
-scripts/orders_ddl.sql        — creates ContosoOrders database + Orders table
-scripts/enableces_kafka.sql   — enables CES, creates credential, adds Orders to stream group
+Part 1 — ContosoOrders database + Orders table
+Part 2 — enable CES + credential for Event Hubs
+Part 3 — stream group → Event Hubs + add Orders table
+Part 4 — verify the CES setup
+Part 5 — destination databases for the Two Consumers (Live) tab
+Part 6 — generate test events (INS / UPD / DEL)
+Part 7 — diagnostics & recovery (only when something is wrong)
 ```
 
-> Edit `enableces_kafka.sql` first: replace `<your-sas-primary-key-here>` with your actual SAS key.
-
-Verify CES is running:
-
-```text
-scripts/checkces.sql
-```
+> Fill in the placeholders first: `<your-strong-password>` (master key) and `<your-sas-primary-key-here>` (the SAS Primary key from step 1c). Then run parts 1–5 once, in order.
 
 ### 3 — Environment variable
 
@@ -216,8 +215,8 @@ dotnet run --project src\CES.UI
 With the app running, execute any of these in SSMS:
 
 ```text
-scripts/neworder.sql          — inserts Art Vandelay order (75-day ship delay)
-scripts/testordersinsert.sql  — inserts + queries + deletes a test row
+scripts/neworder.sql          — quick single INSERT for repeated demo runs
+scripts/ces_demo.sql Part 6   — one INS, one UPD and one DEL event in a row
 ```
 
 Each change appears in the app within a second, colour-coded by operation:
@@ -294,7 +293,7 @@ If you see `InvalidSignature: The token has an invalid signature`, the SQL crede
    EXEC sys.sp_add_object_to_event_stream_group N'OrdersCESGroupKafka', N'dbo.Orders';
    ```
 
-   (Or simply re-run `scripts/enableces_kafka.sql` with the new key filled in — it does all of the above.)
+   (Both steps are ready to run in `scripts/ces_demo.sql` Part 7.)
 
 5. **Verify** — insert a row (`scripts/neworder.sql`), then check that `sys.dm_change_feed_errors` shows no new rows and the event appears in the app.
 
@@ -324,7 +323,7 @@ The **Two Consumers (Live)** tab is the real version of the Two Consumers simula
 
 ### Extra setup
 
-1. **Destination databases** — run `scripts/destinations_ddl.sql` once. It creates `CES_Destination1` and `CES_Destination2`, each with a copy of `Orders` plus the `ces_ledger` and `ces_offsets` tables.
+1. **Destination databases** — run `scripts/ces_demo.sql` Part 5 once. It creates `CES_Destination1` and `CES_Destination2`, each with a copy of `Orders` plus the `ces_ledger` and `ces_offsets` tables.
 2. **Consumer groups** — add `consumer1` and `consumer2` to the `orders` hub (the Kafka `group.id` maps to an Event Hubs consumer group; the Live Feed keeps `$Default`):
 
    ```powershell
@@ -360,12 +359,8 @@ CES/
 ├── docs/
 │   └── ces_idempotent.sql      # Design notes for the 5 scenario tabs (not runnable)
 ├── scripts/
-│   ├── orders_ddl.sql          # Database + table setup
-│   ├── destinations_ddl.sql    # CES_Destination1/2 for the live consumers
-│   ├── enableces_kafka.sql     # CES → Event Hubs configuration
-│   ├── checkces.sql            # CES status diagnostics
-│   ├── neworder.sql            # Test INSERT
-│   └── testordersinsert.sql    # Insert/query/delete test harness
+│   ├── ces_demo.sql            # Complete SQL-side setup + test + recovery, in 7 parts
+│   └── neworder.sql            # Quick test INSERT for repeated demo runs
 └── src/CES.UI/
     ├── Models/
     │   ├── ChangeEvent.cs            # Live event record

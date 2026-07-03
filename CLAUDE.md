@@ -22,9 +22,8 @@ SQL Server 2025 CES Monitor — Avalonia dark-mode desktop app that consumes Cha
 | `src/CES.UI/Views/MainWindow.axaml` | `TabControl` shell — Live Feed + 5 scenario tabs |
 | `src/CES.UI/Views/LiveFeedView.axaml` | Dark event feed UI — colour-coded INS/UPD/DEL badges (moved out of MainWindow) |
 | `src/CES.UI/Converters/OperationColorConverter.cs` | Maps operation string to badge background colour |
-| `scripts/enableces_kafka.sql` | CES setup: credential + stream group → Event Hubs |
-| `scripts/orders_ddl.sql` | Creates `ContosoOrders` DB + `Orders` table |
-| `scripts/destinations_ddl.sql` | Creates `CES_Destination1`/`CES_Destination2` (Orders copy + `ces_ledger` + `ces_offsets`) for the live tab |
+| `scripts/ces_demo.sql` | The whole SQL side in 7 parts: source DB, enable CES + credential, stream group, verify, destination DBs for the live tab, test events, diagnostics/recovery |
+| `scripts/neworder.sql` | Quick single INSERT for repeated demo runs |
 | `docs/ces_idempotent.sql` | Design notes for the 5 consumer scenarios (source of truth for the simulation tabs) — not a runnable script |
 
 ### Scenario simulation tabs
