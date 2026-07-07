@@ -2,7 +2,7 @@
 
 ## Project
 
-SQL Server 2025 CES Monitor — Avalonia dark-mode desktop app that consumes Change Event Streaming events from Azure Event Hubs and displays them live. Also includes 5 in-memory scenario-simulation tabs (no Event Hub/SQL Server needed) that demonstrate CES consumer design patterns from `docs/ces_idempotent.sql`, plus two live tabs where real consumers apply the stream to local destination databases: "Idempotency (Live)" (single-step) and "Two Consumers (Live)".
+SQL Server 2025 CES Monitor — Avalonia dark-mode desktop app that consumes Change Event Streaming events from Azure Event Hubs and displays them live. Also includes 5 in-memory scenario-simulation tabs (no Event Hub/SQL Server needed) that demonstrate CES consumer design patterns from `docs/ces_idempotent.sql`, plus three live tabs where real consumers apply the stream to local destination databases: "Idempotency (Live)" (single-step), "Two Consumers (Live)" and "Batching (Live)" (one transaction per batch).
 
 ## Stack
 
@@ -18,8 +18,10 @@ SQL Server 2025 CES Monitor — Avalonia dark-mode desktop app that consumes Cha
 | --- | --- |
 | `src/CES.UI/Services/KafkaConsumerService.cs` | Background consumer loop (Live Feed, display only); posts to UI via `Dispatcher.UIThread.Post()` |
 | `src/CES.UI/Services/LiveConsumerService.cs` | Real consumer for the live tab: Kafka → single-transaction idempotent apply (ledger check → MERGE/DELETE with `IDENTITY_INSERT` → ledger insert → offset upsert) |
-| `src/CES.UI/Services/OrderEventApplier.cs` | Shared parse + idempotent-apply logic used by both live consumer services |
+| `src/CES.UI/Services/OrderEventApplier.cs` | Shared parse + idempotent-apply logic (single-event and batch) used by all live consumer services |
+| `src/CES.UI/Services/DestinationDatabase.cs` | Shared load-state/reset/count helpers for the local destination DBs |
 | `src/CES.UI/Services/IdempotencyLiveService.cs` | Single-step consumer for the Idempotency (Live) tab: buffers events, applies one per click to `CES_IdempotencyDemo` |
+| `src/CES.UI/Services/BatchingLiveService.cs` | Batch-commit consumer for the Batching (Live) tab: buffers events, applies a batch per commit to `CES_BatchingDemo` |
 | `src/CES.UI/ViewModels/MainWindowViewModel.cs` | Shell VM — `ObservableCollection<ChangeEvent>` + status string, plus one property per scenario tab VM |
 | `src/CES.UI/Views/MainWindow.axaml` | `TabControl` shell — Live Feed + 5 scenario tabs |
 | `src/CES.UI/Views/LiveFeedView.axaml` | Dark event feed UI — colour-coded INS/UPD/DEL badges (moved out of MainWindow) |
@@ -45,6 +47,10 @@ Each is a standalone in-memory simulation (no Kafka/SQL Server) with its own Vie
 ### Idempotency (Live) tab
 
 `ViewModels/IdempotencyLiveTabViewModel.cs` (+ `Views/IdempotencyLiveView.axaml`) is the live twin of the Idempotency & Offsets simulation: consumer group `idempotency` → `CES_IdempotencyDemo`. `IdempotencyLiveService` only buffers incoming events into a queue; **Process Next Event** applies exactly one via `OrderEventApplier`. On Start the existing `ces_ledger`/`ces_offsets` rows are loaded from the DB (ledger survives restarts); **Reset DB** truncates them.
+
+### Batching (Live) tab
+
+`ViewModels/BatchingLiveTabViewModel.cs` (+ `Views/BatchingLiveView.axaml`) is the live twin of the Batching simulation: consumer group `batching` → `CES_BatchingDemo`. Incoming events queue up; **Add Next Event to Batch** buffers up to 5 (no SQL); **Commit Batch** applies them via `OrderEventApplier.ApplyBatchAsync` in one `SqlTransaction` — ledger check/insert per event, offset upserted once per partition. **Simulate Crash Mid-Batch** discards the uncommitted batch (nothing was persisted); Stop + Start replays.
 
 ### Two Consumers (Live) tab
 
@@ -93,7 +99,7 @@ dotnet run --project src\CES.UI
 
 - Namespace: `ces-poc-od.servicebus.windows.net`
 - Event Hub: `orders`
-- Consumer groups: `$Default` (Live Feed), `consumer1`/`consumer2` (Two Consumers Live), `idempotency` (Idempotency Live)
+- Consumer groups: `$Default` (Live Feed), `consumer1`/`consumer2` (Two Consumers Live), `idempotency` (Idempotency Live), `batching` (Batching Live)
 - Protocol: Kafka (port 9093, SASL/SSL, username `$ConnectionString`)
 
 ## SQL Server CES config

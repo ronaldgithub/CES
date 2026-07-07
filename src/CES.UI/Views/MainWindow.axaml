@@ -46,5 +46,8 @@
         <TabItem Header="Batching">
             <views:BatchingView DataContext="{Binding BatchingTab}"/>
         </TabItem>
+        <TabItem Header="Batching (Live)">
+            <views:BatchingLiveView DataContext="{Binding BatchingLiveTab}"/>
+        </TabItem>
     </TabControl>
 </Window>

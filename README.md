@@ -2,7 +2,7 @@
 
 A dark-mode Avalonia desktop app that shows SQL Server 2025 Change Event Streaming (CES) events in real time — every INSERT, UPDATE, and DELETE on the `Orders` table appears instantly in the UI, pushed through Azure Event Hubs.
 
-Alongside the live feed, the app ships 5 self-contained scenario-simulation tabs that demonstrate core CES consumer design patterns (idempotency, multiple consumers, parallel partitions, multi-table routing, batching) entirely in-memory — no Event Hub or SQL Server connection required to explore them. Two of those patterns also have a live twin: **Idempotency (Live)** steps through the real stream one event at a time, and **Two Consumers (Live)** runs two real consumers side by side — both applying events to local destination databases with the ledger + offset pattern.
+Alongside the live feed, the app ships 5 self-contained scenario-simulation tabs that demonstrate core CES consumer design patterns (idempotency, multiple consumers, parallel partitions, multi-table routing, batching) entirely in-memory — no Event Hub or SQL Server connection required to explore them. Three of those patterns also have a live twin: **Idempotency (Live)** steps through the real stream one event at a time, **Two Consumers (Live)** runs two real consumers side by side, and **Batching (Live)** commits whole batches in a single transaction — all applying events to local destination databases with the ledger + offset pattern.
 
 ![CES Monitor screenshot](pictures/app_live_feed.jpg)
 
@@ -123,7 +123,8 @@ Azure Event Hubs (ces-poc-od / orders)
        ├─ consumer group $Default    → Live Feed tab (display only)
        ├─ consumer group consumer1   → CES_Destination1 (Two Consumers Live)
        ├─ consumer group consumer2   → CES_Destination2 (Two Consumers Live)
-       └─ consumer group idempotency → CES_IdempotencyDemo (Idempotency Live, single-step)
+       ├─ consumer group idempotency → CES_IdempotencyDemo (Idempotency Live, single-step)
+       └─ consumer group batching    → CES_BatchingDemo (Batching Live, one transaction per batch)
 ```
 
 One stream, three independent readers — Event Hubs fan-out. The Live Feed only displays events; the two live consumers apply them to their own destination database using a ledger + offset store for exactly-once semantics.
@@ -340,6 +341,23 @@ az eventhubs eventhub consumer-group create --resource-group ces-poc-rg `
 
 ---
 
+## Batching (Live)
+
+The **Batching (Live)** tab is the real version of the Batching simulation. Events from the Event Hub (consumer group `batching`) pile up in the incoming queue; **Add Next Event to Batch** buffers up to 5 of them — still no SQL — and **Commit Batch** applies the whole batch to `CES_BatchingDemo` in **one** SQL transaction: a ledger check + DML + ledger row per event, and the offset updated once per partition at the end.
+
+- **Simulate Crash Mid-Batch** throws away the uncommitted batch: since nothing was written until the commit, the database is untouched — Stop + Start replays the stream and the events come back
+- Duplicates inside a committed batch (e.g. after such a replay) are skipped by the ledger check, per event, inside the same transaction
+- Fewer, bigger transactions = the throughput pattern; the trade-off is more re-work after a crash, which the ledger makes harmless
+
+The consumer group is created the same way:
+
+```powershell
+az eventhubs eventhub consumer-group create --resource-group ces-poc-rg `
+    --namespace-name ces-poc-od --eventhub-name orders --name batching
+```
+
+---
+
 ## Two Consumers (Live)
 
 The **Two Consumers (Live)** tab is the real version of the Two Consumers simulation: two actual Kafka consumers, each with its own Event Hubs consumer group, applying the same CES stream to its own destination database with the ledger + offset pattern from `docs/ces_idempotent.sql`.
@@ -348,7 +366,7 @@ The **Two Consumers (Live)** tab is the real version of the Two Consumers simula
 
 ### Extra setup
 
-1. **Destination databases** — run `scripts/ces_demo.sql` Part 5 once. It creates `CES_Destination1`, `CES_Destination2` and `CES_IdempotencyDemo`, each with a copy of `Orders` plus the `ces_ledger` and `ces_offsets` tables.
+1. **Destination databases** — run `scripts/ces_demo.sql` Part 5 once. It creates `CES_Destination1`, `CES_Destination2`, `CES_IdempotencyDemo` and `CES_BatchingDemo`, each with a copy of `Orders` plus the `ces_ledger` and `ces_offsets` tables.
 2. **Consumer groups** — add `consumer1` and `consumer2` to the `orders` hub (the Kafka `group.id` maps to an Event Hubs consumer group; the Live Feed keeps `$Default`):
 
    ```powershell
@@ -396,7 +414,9 @@ CES/
     │   ├── KafkaConsumerService.cs   # Kafka consumer → UI dispatcher (Live Feed)
     │   ├── LiveConsumerService.cs    # Kafka consumer → idempotent SQL apply
     │   ├── IdempotencyLiveService.cs # Single-step consumer (Idempotency Live)
-    │   └── OrderEventApplier.cs      # Shared parse + idempotent-apply logic
+    │   ├── BatchingLiveService.cs    # Batch-commit consumer (Batching Live)
+    │   ├── OrderEventApplier.cs      # Shared parse + idempotent-apply logic (single + batch)
+    │   └── DestinationDatabase.cs    # Shared load/reset/count helpers for the local DBs
     ├── ViewModels/
     │   ├── MainWindowViewModel.cs        # Shell VM — live feed + tab VMs
     │   ├── IdempotencyTabViewModel.cs
@@ -405,7 +425,8 @@ CES/
     │   ├── TwoConsumersLiveTabViewModel.cs
     │   ├── ParallelPartitionsTabViewModel.cs
     │   ├── MultiTableTabViewModel.cs
-    │   └── BatchingTabViewModel.cs
+    │   ├── BatchingTabViewModel.cs
+    │   └── BatchingLiveTabViewModel.cs
     └── Views/
         ├── MainWindow.axaml              # TabControl shell
         ├── LiveFeedView.axaml            # Dark-mode event feed UI
@@ -415,7 +436,8 @@ CES/
         ├── TwoConsumersLiveView.axaml
         ├── ParallelPartitionsView.axaml
         ├── MultiTableView.axaml
-        └── BatchingView.axaml
+        ├── BatchingView.axaml
+        └── BatchingLiveView.axaml
 ```
 
 ---

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
-using CES.UI.Models;
 using CES.UI.ViewModels;
 using Confluent.Kafka;
 using Microsoft.Data.SqlClient;
@@ -11,21 +10,18 @@ using Microsoft.Data.SqlClient;
 namespace CES.UI.Services;
 
 /// <summary>
-/// Single-step variant of LiveConsumerService for the Idempotency & Offsets (Live)
-/// tab: the consume loop only buffers incoming events; nothing touches the
-/// destination database until the user clicks "Process Next Event". On connect the
-/// existing ces_ledger/ces_offsets rows are loaded from the database, so an app
-/// restart shows the ledger surviving — which is the point of the demo.
+/// Batching variant of the live consumers for the Batching (Live) tab: incoming
+/// events pile up in the tab's queue, the user moves them into a batch, and
+/// "Commit Batch" applies the whole batch in ONE SQL transaction — the offset
+/// moves once per batch instead of once per event. A crash before the commit
+/// persists nothing, and the Kafka replay after restart re-delivers the batch.
 /// </summary>
-public class IdempotencyLiveService(IdempotencyLiveTabViewModel viewModel)
+public class BatchingLiveService(BatchingLiveTabViewModel viewModel)
 {
     private const string BootstrapServers = "ces-poc-od.servicebus.windows.net:9093";
     private const string Topic = "orders";
-    private const string ConsumerGroup = "idempotency";
-    private const string DatabaseName = "CES_IdempotencyDemo";
-
-    private const string SqlConnectionString =
-        $"Server=localhost;Database={DatabaseName};Integrated Security=True;TrustServerCertificate=True";
+    private const string ConsumerGroup = "batching";
+    public const string DatabaseName = "CES_BatchingDemo";
 
     private static readonly string EventHubsConnectionString =
         Environment.GetEnvironmentVariable("CES_CONNECTION_STRING")
@@ -80,7 +76,7 @@ public class IdempotencyLiveService(IdempotencyLiveTabViewModel viewModel)
                 if (ev is null || ev.Table != "Orders") continue;
 
                 var pending = new PendingLiveEvent(ev, result.Partition.Value, result.Offset.Value);
-                Dispatcher.UIThread.Post(() => viewModel.EnqueuePending(pending));
+                Dispatcher.UIThread.Post(() => viewModel.EnqueueIncoming(pending));
             }
 
             consumer.Close();
@@ -95,20 +91,16 @@ public class IdempotencyLiveService(IdempotencyLiveTabViewModel viewModel)
         Dispatcher.UIThread.Post(() => viewModel.MarkStopped("Stopped"));
     }
 
-    // A fresh connection per operation: apply/reset are user-paced single clicks,
-    // and this avoids sharing one SqlConnection between the UI and consume loop.
-    public static async Task<(bool Applied, int OrderRowCount)> ApplyAsync(
-        PendingLiveEvent pending, CancellationToken cancellationToken)
+    public static async Task<(List<(PendingLiveEvent Event, bool Applied)> Results, int OrderRowCount)>
+        CommitBatchAsync(IReadOnlyList<PendingLiveEvent> batch, CancellationToken cancellationToken)
     {
-        await using var conn = new SqlConnection(SqlConnectionString);
+        await using var conn = new SqlConnection(DestinationDatabase.ConnectionString(DatabaseName));
         await conn.OpenAsync(cancellationToken);
 
-        var applied = await OrderEventApplier.ApplyAsync(
-            conn, pending.Event, pending.PartitionId, pending.SequenceNumber, cancellationToken);
-
+        var results = await OrderEventApplier.ApplyBatchAsync(conn, batch, cancellationToken);
         var rows = await DestinationDatabase.CountOrdersAsync(conn, cancellationToken);
 
-        return (applied, rows);
+        return (results, rows);
     }
 
     public static Task ResetDatabaseAsync(CancellationToken cancellationToken) =>
