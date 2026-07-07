@@ -11,7 +11,7 @@ namespace CES.UI.Services;
 
 public class KafkaConsumerService(MainWindowViewModel viewModel)
 {
-    private const string BootstrapServers = "ces-poc.servicebus.windows.net:9093";
+    private const string BootstrapServers = "ces-poc-od.servicebus.windows.net:9093";
     private const string Topic = "orders";   // Event Hub name
     private const string GroupId = "$Default";  // Event Hubs default consumer group
 

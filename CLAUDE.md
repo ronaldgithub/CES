@@ -2,7 +2,7 @@
 
 ## Project
 
-SQL Server 2025 CES Monitor — Avalonia dark-mode desktop app that consumes Change Event Streaming events from Azure Event Hubs and displays them live. Also includes 5 in-memory scenario-simulation tabs (no Event Hub/SQL Server needed) that demonstrate CES consumer design patterns from `docs/ces_idempotent.sql`, plus a "Two Consumers (Live)" tab where two real consumers apply the stream to local destination databases.
+SQL Server 2025 CES Monitor — Avalonia dark-mode desktop app that consumes Change Event Streaming events from Azure Event Hubs and displays them live. Also includes 5 in-memory scenario-simulation tabs (no Event Hub/SQL Server needed) that demonstrate CES consumer design patterns from `docs/ces_idempotent.sql`, plus two live tabs where real consumers apply the stream to local destination databases: "Idempotency (Live)" (single-step) and "Two Consumers (Live)".
 
 ## Stack
 
@@ -15,9 +15,11 @@ SQL Server 2025 CES Monitor — Avalonia dark-mode desktop app that consumes Cha
 ## Key files
 
 | File | Purpose |
-|---|---|
+| --- | --- |
 | `src/CES.UI/Services/KafkaConsumerService.cs` | Background consumer loop (Live Feed, display only); posts to UI via `Dispatcher.UIThread.Post()` |
 | `src/CES.UI/Services/LiveConsumerService.cs` | Real consumer for the live tab: Kafka → single-transaction idempotent apply (ledger check → MERGE/DELETE with `IDENTITY_INSERT` → ledger insert → offset upsert) |
+| `src/CES.UI/Services/OrderEventApplier.cs` | Shared parse + idempotent-apply logic used by both live consumer services |
+| `src/CES.UI/Services/IdempotencyLiveService.cs` | Single-step consumer for the Idempotency (Live) tab: buffers events, applies one per click to `CES_IdempotencyDemo` |
 | `src/CES.UI/ViewModels/MainWindowViewModel.cs` | Shell VM — `ObservableCollection<ChangeEvent>` + status string, plus one property per scenario tab VM |
 | `src/CES.UI/Views/MainWindow.axaml` | `TabControl` shell — Live Feed + 5 scenario tabs |
 | `src/CES.UI/Views/LiveFeedView.axaml` | Dark event feed UI — colour-coded INS/UPD/DEL badges (moved out of MainWindow) |
@@ -39,6 +41,10 @@ Each is a standalone in-memory simulation (no Kafka/SQL Server) with its own Vie
 | Batching | `ViewModels/BatchingTabViewModel.cs` | Buffered batch commit updates the offset once; crash simulation proves replay-safety |
 
 `Models/SimulatedEvent.cs` and `Models/SimulationModels.cs` (`LedgerEntry`, `OffsetEntry`) are the shared plain record types used across all 5 tabs.
+
+### Idempotency (Live) tab
+
+`ViewModels/IdempotencyLiveTabViewModel.cs` (+ `Views/IdempotencyLiveView.axaml`) is the live twin of the Idempotency & Offsets simulation: consumer group `idempotency` → `CES_IdempotencyDemo`. `IdempotencyLiveService` only buffers incoming events into a queue; **Process Next Event** applies exactly one via `OrderEventApplier`. On Start the existing `ces_ledger`/`ces_offsets` rows are loaded from the DB (ledger survives restarts); **Reset DB** truncates them.
 
 ### Two Consumers (Live) tab
 
@@ -85,9 +91,9 @@ dotnet run --project src\CES.UI
 
 ## Azure Event Hubs config
 
-- Namespace: `ces-poc.servicebus.windows.net`
+- Namespace: `ces-poc-od.servicebus.windows.net`
 - Event Hub: `orders`
-- Consumer groups: `$Default` (Live Feed), `consumer1`/`consumer2` (Two Consumers Live)
+- Consumer groups: `$Default` (Live Feed), `consumer1`/`consumer2` (Two Consumers Live), `idempotency` (Idempotency Live)
 - Protocol: Kafka (port 9093, SASL/SSL, username `$ConnectionString`)
 
 ## SQL Server CES config
@@ -96,7 +102,7 @@ dotnet run --project src\CES.UI
 EXEC sys.sp_create_event_stream_group
     @stream_group_name      = N'OrdersCESGroupKafka',
     @destination_type       = N'AzureEventHubsAmqp',
-    @destination_location   = N'ces-poc.servicebus.windows.net/orders',
+    @destination_location   = N'ces-poc-od.servicebus.windows.net/orders',
     @destination_credential = eventhubscred;
 ```
 

@@ -16,6 +16,8 @@ public partial class MainWindowViewModel : ObservableObject
 
     public IdempotencyTabViewModel IdempotencyTab { get; } = new();
 
+    public IdempotencyLiveTabViewModel IdempotencyLiveTab { get; } = new();
+
     public TwoConsumersTabViewModel TwoConsumersTab { get; } = new();
 
     public TwoConsumersLiveTabViewModel TwoConsumersLiveTab { get; } = new();

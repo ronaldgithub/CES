@@ -5,7 +5,7 @@
         x:Class="CES.UI.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="SQL Server 2025 · CES Monitor"
-        Width="1024" Height="720"
+        Width="1200" Height="720"
         MinWidth="800" MinHeight="500"
         Background="#111827">
 
@@ -27,6 +27,9 @@
         </TabItem>
         <TabItem Header="Idempotency &amp; Offsets">
             <views:IdempotencyView DataContext="{Binding IdempotencyTab}"/>
+        </TabItem>
+        <TabItem Header="Idempotency (Live)">
+            <views:IdempotencyLiveView DataContext="{Binding IdempotencyLiveTab}"/>
         </TabItem>
         <TabItem Header="Two Consumers">
             <views:TwoConsumersView DataContext="{Binding TwoConsumersTab}"/>

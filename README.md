@@ -2,7 +2,7 @@
 
 A dark-mode Avalonia desktop app that shows SQL Server 2025 Change Event Streaming (CES) events in real time — every INSERT, UPDATE, and DELETE on the `Orders` table appears instantly in the UI, pushed through Azure Event Hubs.
 
-Alongside the live feed, the app ships 5 self-contained scenario-simulation tabs that demonstrate core CES consumer design patterns (idempotency, multiple consumers, parallel partitions, multi-table routing, batching) entirely in-memory — no Event Hub or SQL Server connection required to explore them.
+Alongside the live feed, the app ships 5 self-contained scenario-simulation tabs that demonstrate core CES consumer design patterns (idempotency, multiple consumers, parallel partitions, multi-table routing, batching) entirely in-memory — no Event Hub or SQL Server connection required to explore them. Two of those patterns also have a live twin: **Idempotency (Live)** steps through the real stream one event at a time, and **Two Consumers (Live)** runs two real consumers side by side — both applying events to local destination databases with the ledger + offset pattern.
 
 ![CES Monitor screenshot](pictures/app_live_feed.jpg)
 
@@ -117,12 +117,13 @@ SQL Server 2025
   └─ CES (dbo.Orders)
        │  AMQP
        ▼
-Azure Event Hubs (ces-poc / orders)
+Azure Event Hubs (ces-poc-od / orders)
        │  Kafka protocol (port 9093, SASL/SSL)
        │
-       ├─ consumer group $Default   → Live Feed tab (display only)
-       ├─ consumer group consumer1  → CES_Destination1 (Two Consumers Live)
-       └─ consumer group consumer2  → CES_Destination2 (Two Consumers Live)
+       ├─ consumer group $Default    → Live Feed tab (display only)
+       ├─ consumer group consumer1   → CES_Destination1 (Two Consumers Live)
+       ├─ consumer group consumer2   → CES_Destination2 (Two Consumers Live)
+       └─ consumer group idempotency → CES_IdempotencyDemo (Idempotency Live, single-step)
 ```
 
 One stream, three independent readers — Event Hubs fan-out. The Live Feed only displays events; the two live consumers apply them to their own destination database using a ledger + offset store for exactly-once semantics.
@@ -152,7 +153,7 @@ One stream, three independent readers — Event Hubs fan-out. The Live Feed only
 4. Fill in:
    - **Subscription** — pick yours
    - **Resource group** — create new, e.g. `ces-poc-rg`
-   - **Namespace name** — e.g. `ces-poc` (must be globally unique)
+   - **Namespace name** — e.g. `ces-poc-od` (must be globally unique)
    - **Location** — nearest region
    - **Pricing tier** — **Standard** ← required, Basic does not support the Kafka endpoint
 5. Click **Review + create** → **Create**
@@ -171,7 +172,7 @@ One stream, three independent readers — Event Hubs fan-out. The Live Feed only
 2. Click **Shared access policies**
 3. Click **RootManageSharedAccessKey**
 4. A panel opens on the right — copy the **Primary connection string**
-   (starts with `Endpoint=sb://ces-poc.servicebus.windows.net/;...`)
+   (starts with `Endpoint=sb://ces-poc-od.servicebus.windows.net/;...`)
 5. Also note the **Primary key** (shorter value) — needed for the SQL credential
 
 > **Tip:** The Primary connection string = full value for `CES_CONNECTION_STRING`
@@ -198,7 +199,7 @@ Part 7 — diagnostics & recovery (only when something is wrong)
 Create `set-env.local.ps1` (already gitignored) with your connection string:
 
 ```powershell
-$env:CES_CONNECTION_STRING = "Endpoint=sb://ces-poc.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=<your-key>"
+$env:CES_CONNECTION_STRING = "Endpoint=sb://ces-poc-od.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=<your-key>"
 ```
 
 ### 4 — Run the app
@@ -244,21 +245,21 @@ ORDER BY entry_time DESC;
 
 If you see `InvalidSignature: The token has an invalid signature`, the SQL credential still holds the old key. Recovery steps:
 
-1. **Recreate the Azure resources** — follow [Setup step 1](#1--azure-event-hubs-detailed) again (same namespace name `ces-poc`, same hub name `orders`, Standard tier), or do it in one go with the Azure CLI:
+1. **Recreate the Azure resources** — follow [Setup step 1](#1--azure-event-hubs-detailed) again (same namespace name `ces-poc-od`, same hub name `orders`, Standard tier), or do it in one go with the Azure CLI:
 
    ```powershell
    az group create --name ces-poc-rg --location westeurope
 
-   az eventhubs namespace create --resource-group ces-poc-rg --name ces-poc `
+   az eventhubs namespace create --resource-group ces-poc-rg --name ces-poc-od `
        --location westeurope --sku Standard
 
    az eventhubs eventhub create --resource-group ces-poc-rg `
-       --namespace-name ces-poc --name orders
+       --namespace-name ces-poc-od --name orders
 
    # Prints the new connection string (for set-env.local.ps1)
    # and primary key (for the SQL credential)
    az eventhubs namespace authorization-rule keys list `
-       --resource-group ces-poc-rg --namespace-name ces-poc `
+       --resource-group ces-poc-rg --namespace-name ces-poc-od `
        --name RootManageSharedAccessKey `
        --query "{connectionString: primaryConnectionString, primaryKey: primaryKey}"
    ```
@@ -287,7 +288,7 @@ If you see `InvalidSignature: The token has an invalid signature`, the SQL crede
    EXEC sys.sp_create_event_stream_group
        @stream_group_name      = N'OrdersCESGroupKafka',
        @destination_type       = N'AzureEventHubsAmqp',
-       @destination_location   = N'ces-poc.servicebus.windows.net/orders',
+       @destination_location   = N'ces-poc-od.servicebus.windows.net/orders',
        @destination_credential = eventhubscred;
 
    EXEC sys.sp_add_object_to_event_stream_group N'OrdersCESGroupKafka', N'dbo.Orders';
@@ -315,6 +316,30 @@ The app opens with a tabbed window. Besides **Live Feed** (the real Kafka consum
 
 ---
 
+## Idempotency (Live)
+
+The **Idempotency (Live)** tab is the real version of the Idempotency & Offsets simulation: the same single-step UI, but the events come from the actual Event Hub (consumer group `idempotency`) and every click of **Process Next Event** applies exactly one of them to the local `CES_IdempotencyDemo` database.
+
+![Idempotency Live screenshot](pictures/app_idempotent1.jpg)
+
+The ledger and offsets on screen are real rows in `CES_IdempotencyDemo`:
+
+![Idempotency Live ledger in SSMS](pictures/app_idempotent2.jpg)
+
+- Incoming events buffer in a queue — the action bar previews the next one (`Next: seq …`)
+- **Start** loads the existing `ces_ledger`/`ces_offsets` rows from the database first, so restarting the app shows the ledger persisting
+- Kafka offsets are never committed: **Stop** + **Start** replays the stream from the beginning, and every already-processed event shows up as `DUPLICATE — skipped`
+- **Reset DB** empties the ledger, offsets and `Orders` table; stop + start then replays and applies everything again
+
+Extra setup: `scripts/ces_demo.sql` Part 5 creates the `CES_IdempotencyDemo` database, and the consumer group is created like the ones below:
+
+```powershell
+az eventhubs eventhub consumer-group create --resource-group ces-poc-rg `
+    --namespace-name ces-poc-od --eventhub-name orders --name idempotency
+```
+
+---
+
 ## Two Consumers (Live)
 
 The **Two Consumers (Live)** tab is the real version of the Two Consumers simulation: two actual Kafka consumers, each with its own Event Hubs consumer group, applying the same CES stream to its own destination database with the ledger + offset pattern from `docs/ces_idempotent.sql`.
@@ -323,14 +348,14 @@ The **Two Consumers (Live)** tab is the real version of the Two Consumers simula
 
 ### Extra setup
 
-1. **Destination databases** — run `scripts/ces_demo.sql` Part 5 once. It creates `CES_Destination1` and `CES_Destination2`, each with a copy of `Orders` plus the `ces_ledger` and `ces_offsets` tables.
+1. **Destination databases** — run `scripts/ces_demo.sql` Part 5 once. It creates `CES_Destination1`, `CES_Destination2` and `CES_IdempotencyDemo`, each with a copy of `Orders` plus the `ces_ledger` and `ces_offsets` tables.
 2. **Consumer groups** — add `consumer1` and `consumer2` to the `orders` hub (the Kafka `group.id` maps to an Event Hubs consumer group; the Live Feed keeps `$Default`):
 
    ```powershell
    az eventhubs eventhub consumer-group create --resource-group ces-poc-rg `
-       --namespace-name ces-poc --eventhub-name orders --name consumer1
+       --namespace-name ces-poc-od --eventhub-name orders --name consumer1
    az eventhubs eventhub consumer-group create --resource-group ces-poc-rg `
-       --namespace-name ces-poc --eventhub-name orders --name consumer2
+       --namespace-name ces-poc-od --eventhub-name orders --name consumer2
    ```
 
    (Portal: Event Hub `orders` → Consumer groups → + Consumer group.)
@@ -369,10 +394,13 @@ CES/
     │   └── SimulationModels.cs       # LedgerEntry, OffsetEntry
     ├── Services/
     │   ├── KafkaConsumerService.cs   # Kafka consumer → UI dispatcher (Live Feed)
-    │   └── LiveConsumerService.cs    # Kafka consumer → idempotent SQL apply
+    │   ├── LiveConsumerService.cs    # Kafka consumer → idempotent SQL apply
+    │   ├── IdempotencyLiveService.cs # Single-step consumer (Idempotency Live)
+    │   └── OrderEventApplier.cs      # Shared parse + idempotent-apply logic
     ├── ViewModels/
     │   ├── MainWindowViewModel.cs        # Shell VM — live feed + tab VMs
     │   ├── IdempotencyTabViewModel.cs
+    │   ├── IdempotencyLiveTabViewModel.cs
     │   ├── TwoConsumersTabViewModel.cs
     │   ├── TwoConsumersLiveTabViewModel.cs
     │   ├── ParallelPartitionsTabViewModel.cs
@@ -382,6 +410,7 @@ CES/
         ├── MainWindow.axaml              # TabControl shell
         ├── LiveFeedView.axaml            # Dark-mode event feed UI
         ├── IdempotencyView.axaml
+        ├── IdempotencyLiveView.axaml
         ├── TwoConsumersView.axaml
         ├── TwoConsumersLiveView.axaml
         ├── ParallelPartitionsView.axaml
