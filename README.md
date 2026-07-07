@@ -162,6 +162,10 @@ One stream, three independent readers — Event Hubs fan-out. The Live Feed only
 5. Click **Review + create** → **Create**
 6. Wait ~1 minute, then click **Go to resource**
 
+The finished namespace looks like this (Standard tier, Kafka surface enabled, one `orders` hub with 4 partitions):
+
+![Event Hubs namespace overview](pictures/azure_event_hub1.jpg)
+
 #### 1b — Create the Event Hub
 
 1. Inside the namespace, click **+ Event Hub** (top toolbar)
@@ -377,6 +381,12 @@ The **Partitions (Live)** tab is the real version of the Parallel Partitions sim
 
 The schema makes the independence visible: `partition_id` is part of the `ces_ledger` primary key and *is* the `ces_offsets` primary key, so every worker tracks its own position without coordinating with the others. Within a partition CES guarantees commit order; across partitions there is no ordering — which is exactly what the four panels show.
 
+![Partitions Live: four workers with independent sequences and offsets](pictures/app_partitions.jpg)
+
+In SSMS the same state is visible as real rows — one ledger keyed by `(partition_id, sequence_number)` and one offset row per partition:
+
+![CES_Partitions ledger and offsets in SSMS](pictures/app_partitions1.jpg)
+
 ```powershell
 az eventhubs eventhub consumer-group create --resource-group ces-poc-rg `
     --namespace-name ces-poc-od --eventhub-name orders --name partitions
@@ -427,6 +437,10 @@ The **Two Consumers (Live)** tab is the real version of the Two Consumers simula
    ```
 
    (Portal: Event Hub `orders` → Consumer groups → + Consumer group.)
+
+   With all live tabs set up, the hub ends up with 7 consumer groups — each an independent reader of the same stream:
+
+   ![orders Event Hub with all consumer groups](pictures/azure_consumer_groups.jpg)
 
 ### How it works
 
