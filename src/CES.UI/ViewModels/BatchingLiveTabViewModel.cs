@@ -14,7 +14,7 @@ namespace CES.UI.ViewModels;
 /// <summary>
 /// Live version of the Batching tab: real events queue up from the Event Hub
 /// (consumer group "batching"), the user buffers up to 5 into a batch, and
-/// "Commit Batch" applies them in one SQL transaction to CES_BatchingDemo —
+/// "Commit Batch" applies them in one SQL transaction to CES_Batching —
 /// ledger row per event, offset updated once. "Simulate Crash Mid-Batch" throws
 /// the uncommitted batch away, proving nothing was persisted before the commit.
 /// </summary>

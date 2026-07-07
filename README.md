@@ -124,7 +124,7 @@ Azure Event Hubs (ces-poc-od / orders)
        ├─ consumer group consumer1   → CES_Destination1 (Two Consumers Live)
        ├─ consumer group consumer2   → CES_Destination2 (Two Consumers Live)
        ├─ consumer group idempotency → CES_IdempotencyDemo (Idempotency Live, single-step)
-       ├─ consumer group batching    → CES_BatchingDemo (Batching Live, one transaction per batch)
+       ├─ consumer group batching    → CES_Batching (Batching Live, one transaction per batch)
        └─ consumer group multitable  → CES_MultiTable (Multi-Table Live, Orders + OrderLines routing)
 ```
 
@@ -345,7 +345,7 @@ az eventhubs eventhub consumer-group create --resource-group ces-poc-rg `
 
 ## Batching (Live)
 
-The **Batching (Live)** tab is the real version of the Batching simulation. Events from the Event Hub (consumer group `batching`) pile up in the incoming queue; **Add Next Event to Batch** buffers up to 5 of them — still no SQL — and **Commit Batch** applies the whole batch to `CES_BatchingDemo` in **one** SQL transaction: a ledger check + DML + ledger row per event, and the offset updated once per partition at the end.
+The **Batching (Live)** tab is the real version of the Batching simulation. Events from the Event Hub (consumer group `batching`) pile up in the incoming queue; **Add Next Event to Batch** buffers up to 5 of them — still no SQL — and **Commit Batch** applies the whole batch to `CES_Batching` in **one** SQL transaction: a ledger check + DML + ledger row per event, and the offset updated once per partition at the end.
 
 ![Batching Live: a batch buffered, ledger untouched](pictures/app_batching1.jpg)
 
@@ -355,7 +355,7 @@ A simulated crash throws the buffered batch away — the log shows nothing was p
 
 The destination table is real — the committed batches are visible in SSMS:
 
-![CES_BatchingDemo Orders in SSMS](pictures/app_batching3.jpg)
+![CES_Batching Orders in SSMS](pictures/app_batching3.jpg)
 
 - **Simulate Crash Mid-Batch** throws away the uncommitted batch: since nothing was written until the commit, the database is untouched — Stop + Start replays the stream and the events come back
 - Duplicates inside a committed batch (e.g. after such a replay) are skipped by the ledger check, per event, inside the same transaction
@@ -402,7 +402,7 @@ The **Two Consumers (Live)** tab is the real version of the Two Consumers simula
 
 ### Extra setup
 
-1. **Destination databases** — run `scripts/ces_demo.sql` Part 5 once. It creates `CES_Destination1`, `CES_Destination2`, `CES_IdempotencyDemo`, `CES_BatchingDemo` and `CES_MultiTable`, each with a copy of `Orders` plus the `ces_ledger` and `ces_offsets` tables (`CES_MultiTable` also gets `OrderLines`).
+1. **Destination databases** — run `scripts/ces_demo.sql` Part 5 once. It creates `CES_Destination1`, `CES_Destination2`, `CES_IdempotencyDemo`, `CES_Batching` and `CES_MultiTable`, each with a copy of `Orders` plus the `ces_ledger` and `ces_offsets` tables (`CES_MultiTable` also gets `OrderLines`).
 2. **Consumer groups** — add `consumer1` and `consumer2` to the `orders` hub (the Kafka `group.id` maps to an Event Hubs consumer group; the Live Feed keeps `$Default`):
 
    ```powershell

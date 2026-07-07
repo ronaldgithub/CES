@@ -21,7 +21,7 @@ public class BatchingLiveService(BatchingLiveTabViewModel viewModel)
     private const string BootstrapServers = "ces-poc-od.servicebus.windows.net:9093";
     private const string Topic = "orders";
     private const string ConsumerGroup = "batching";
-    public const string DatabaseName = "CES_BatchingDemo";
+    public const string DatabaseName = "CES_Batching";
 
     private static readonly string EventHubsConnectionString =
         Environment.GetEnvironmentVariable("CES_CONNECTION_STRING")

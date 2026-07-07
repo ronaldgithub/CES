@@ -131,7 +131,7 @@ GO
 -- (the pattern from docs/ces_idempotent.sql).
 -- CES_IdempotencyDemo is the same schema for the Idempotency &
 -- Offsets (Live) tab, which steps through the stream one event at
--- a time. CES_BatchingDemo likewise backs the Batching (Live) tab,
+-- a time. CES_Batching likewise backs the Batching (Live) tab,
 -- which commits whole batches in one transaction. CES_MultiTable
 -- backs the Multi-Table (Live) tab and also has OrderLines: one
 -- shared ledger/offset guards both tables.
@@ -140,13 +140,13 @@ GO
 DROP DATABASE IF EXISTS CES_Destination1;
 DROP DATABASE IF EXISTS CES_Destination2;
 DROP DATABASE IF EXISTS CES_IdempotencyDemo;
-DROP DATABASE IF EXISTS CES_BatchingDemo;
+DROP DATABASE IF EXISTS CES_Batching;
 DROP DATABASE IF EXISTS CES_MultiTable;
 GO
 CREATE DATABASE CES_Destination1;
 CREATE DATABASE CES_Destination2;
 CREATE DATABASE CES_IdempotencyDemo;
-CREATE DATABASE CES_BatchingDemo;
+CREATE DATABASE CES_Batching;
 CREATE DATABASE CES_MultiTable;
 GO
 
@@ -240,7 +240,7 @@ CREATE TABLE dbo.ces_offsets (
 );
 GO
 
-USE [CES_BatchingDemo];
+USE [CES_Batching];
 GO
 CREATE TABLE dbo.Orders (
     OrderID INT PRIMARY KEY CLUSTERED IDENTITY,

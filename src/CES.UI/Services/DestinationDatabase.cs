@@ -8,7 +8,7 @@ namespace CES.UI.Services;
 
 /// <summary>
 /// Helpers shared by the live tabs for their local destination databases
-/// (CES_Destination1/2, CES_IdempotencyDemo, CES_BatchingDemo).
+/// (CES_Destination1/2, CES_IdempotencyDemo, CES_Batching).
 /// </summary>
 public static class DestinationDatabase
 {

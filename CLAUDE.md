@@ -21,7 +21,7 @@ SQL Server 2025 CES Monitor — Avalonia dark-mode desktop app that consumes Cha
 | `src/CES.UI/Services/OrderEventApplier.cs` | Shared parse + idempotent-apply logic (single-event and batch) used by all live consumer services |
 | `src/CES.UI/Services/DestinationDatabase.cs` | Shared load-state/reset/count helpers for the local destination DBs |
 | `src/CES.UI/Services/IdempotencyLiveService.cs` | Single-step consumer for the Idempotency (Live) tab: buffers events, applies one per click to `CES_IdempotencyDemo` |
-| `src/CES.UI/Services/BatchingLiveService.cs` | Batch-commit consumer for the Batching (Live) tab: buffers events, applies a batch per commit to `CES_BatchingDemo` |
+| `src/CES.UI/Services/BatchingLiveService.cs` | Batch-commit consumer for the Batching (Live) tab: buffers events, applies a batch per commit to `CES_Batching` |
 | `src/CES.UI/Services/MultiTableLiveService.cs` | Table-routing consumer for the Multi-Table (Live) tab: routes Orders/OrderLines events to `CES_MultiTable` behind one shared ledger |
 | `src/CES.UI/ViewModels/MainWindowViewModel.cs` | Shell VM — `ObservableCollection<ChangeEvent>` + status string, plus one property per scenario tab VM |
 | `src/CES.UI/Views/MainWindow.axaml` | `TabControl` shell — Live Feed + 5 scenario tabs |
@@ -51,7 +51,7 @@ Each is a standalone in-memory simulation (no Kafka/SQL Server) with its own Vie
 
 ### Batching (Live) tab
 
-`ViewModels/BatchingLiveTabViewModel.cs` (+ `Views/BatchingLiveView.axaml`) is the live twin of the Batching simulation: consumer group `batching` → `CES_BatchingDemo`. Incoming events queue up; **Add Next Event to Batch** buffers up to 5 (no SQL); **Commit Batch** applies them via `OrderEventApplier.ApplyBatchAsync` in one `SqlTransaction` — ledger check/insert per event, offset upserted once per partition. **Simulate Crash Mid-Batch** discards the uncommitted batch (nothing was persisted); Stop + Start replays.
+`ViewModels/BatchingLiveTabViewModel.cs` (+ `Views/BatchingLiveView.axaml`) is the live twin of the Batching simulation: consumer group `batching` → `CES_Batching`. Incoming events queue up; **Add Next Event to Batch** buffers up to 5 (no SQL); **Commit Batch** applies them via `OrderEventApplier.ApplyBatchAsync` in one `SqlTransaction` — ledger check/insert per event, offset upserted once per partition. **Simulate Crash Mid-Batch** discards the uncommitted batch (nothing was persisted); Stop + Start replays.
 
 ### Multi-Table (Live) tab
 
