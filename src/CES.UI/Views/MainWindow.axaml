@@ -40,6 +40,9 @@
         <TabItem Header="Parallel Partitions">
             <views:ParallelPartitionsView DataContext="{Binding ParallelPartitionsTab}"/>
         </TabItem>
+        <TabItem Header="Partitions (Live)">
+            <views:ParallelPartitionsLiveView DataContext="{Binding ParallelPartitionsLiveTab}"/>
+        </TabItem>
         <TabItem Header="Multi-Table Routing">
             <views:MultiTableView DataContext="{Binding MultiTableTab}"/>
         </TabItem>

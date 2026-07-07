@@ -13,7 +13,8 @@
 -- Azure side (portal or CLI, see README):
 --   Event Hubs namespace  : ces-poc-od       (Standard tier)
 --   Event hub             : orders
---   Consumer groups       : $Default, consumer1, consumer2, idempotency, batching, multitable
+--   Consumer groups       : $Default, consumer1, consumer2, idempotency,
+--                           batching, multitable, partitions
 --
 -- Parts 1–5 are one-time setup. Part 6 generates test events.
 -- Part 7 is diagnostics/recovery — run only when needed.
@@ -142,12 +143,14 @@ DROP DATABASE IF EXISTS CES_Destination2;
 DROP DATABASE IF EXISTS CES_IdempotencyDemo;
 DROP DATABASE IF EXISTS CES_Batching;
 DROP DATABASE IF EXISTS CES_MultiTable;
+DROP DATABASE IF EXISTS CES_Partitions;
 GO
 CREATE DATABASE CES_Destination1;
 CREATE DATABASE CES_Destination2;
 CREATE DATABASE CES_IdempotencyDemo;
 CREATE DATABASE CES_Batching;
 CREATE DATABASE CES_MultiTable;
+CREATE DATABASE CES_Partitions;
 GO
 
 USE [CES_Destination1];
@@ -241,6 +244,36 @@ CREATE TABLE dbo.ces_offsets (
 GO
 
 USE [CES_Batching];
+GO
+CREATE TABLE dbo.Orders (
+    OrderID INT PRIMARY KEY CLUSTERED IDENTITY,
+    CustomerFirstName NVARCHAR(50),
+    CustomerLastName NVARCHAR(50),
+    Company NVARCHAR(100),
+    SalesDate DATE,
+    EstimatedShipDate DATE,
+    ShippingID INT,
+    ShippingLocation NVARCHAR(100),
+    Product NVARCHAR(100),
+    Quantity INT,
+    Price DECIMAL(10, 2)
+);
+CREATE TABLE dbo.ces_ledger (
+    partition_id        INT          NOT NULL,
+    sequence_number     BIGINT       NOT NULL,
+    commit_lsn          VARCHAR(64)  NOT NULL,
+    processed_at        DATETIME2    NOT NULL DEFAULT SYSDATETIME(),
+    CONSTRAINT PK_ces_ledger PRIMARY KEY (partition_id, sequence_number)
+);
+CREATE TABLE dbo.ces_offsets (
+    partition_id         INT          NOT NULL PRIMARY KEY,
+    last_sequence_number BIGINT       NOT NULL,
+    last_commit_lsn      VARCHAR(64)  NOT NULL,
+    updated_at           DATETIME2    NOT NULL DEFAULT SYSDATETIME()
+);
+GO
+
+USE [CES_Partitions];
 GO
 CREATE TABLE dbo.Orders (
     OrderID INT PRIMARY KEY CLUSTERED IDENTITY,

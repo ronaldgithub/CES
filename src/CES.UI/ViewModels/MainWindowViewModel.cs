@@ -24,6 +24,8 @@ public partial class MainWindowViewModel : ObservableObject
 
     public ParallelPartitionsTabViewModel ParallelPartitionsTab { get; } = new();
 
+    public ParallelPartitionsLiveTabViewModel ParallelPartitionsLiveTab { get; } = new();
+
     public MultiTableTabViewModel MultiTableTab { get; } = new();
 
     public MultiTableLiveTabViewModel MultiTableLiveTab { get; } = new();

@@ -2,7 +2,7 @@
 
 ## Project
 
-SQL Server 2025 CES Monitor — Avalonia dark-mode desktop app that consumes Change Event Streaming events from Azure Event Hubs and displays them live. Also includes 5 in-memory scenario-simulation tabs (no Event Hub/SQL Server needed) that demonstrate CES consumer design patterns from `docs/ces_idempotent.sql`, plus four live tabs where real consumers apply the stream to local destination databases: "Idempotency (Live)" (single-step), "Two Consumers (Live)", "Batching (Live)" (one transaction per batch) and "Multi-Table (Live)" (Orders + OrderLines routing behind one shared ledger).
+SQL Server 2025 CES Monitor — Avalonia dark-mode desktop app that consumes Change Event Streaming events from Azure Event Hubs and displays them live. Also includes 5 in-memory scenario-simulation tabs (no Event Hub/SQL Server needed) that demonstrate CES consumer design patterns from `docs/ces_idempotent.sql`, plus five live tabs where real consumers apply the stream to local destination databases: "Idempotency (Live)" (single-step), "Two Consumers (Live)", "Batching (Live)" (one transaction per batch), "Multi-Table (Live)" (Orders + OrderLines routing behind one shared ledger) and "Partitions (Live)" (4 per-partition workers applying concurrently).
 
 ## Stack
 
@@ -23,6 +23,7 @@ SQL Server 2025 CES Monitor — Avalonia dark-mode desktop app that consumes Cha
 | `src/CES.UI/Services/IdempotencyLiveService.cs` | Single-step consumer for the Idempotency (Live) tab: buffers events, applies one per click to `CES_IdempotencyDemo` |
 | `src/CES.UI/Services/BatchingLiveService.cs` | Batch-commit consumer for the Batching (Live) tab: buffers events, applies a batch per commit to `CES_Batching` |
 | `src/CES.UI/Services/MultiTableLiveService.cs` | Table-routing consumer for the Multi-Table (Live) tab: routes Orders/OrderLines events to `CES_MultiTable` behind one shared ledger |
+| `src/CES.UI/Services/ParallelPartitionsLiveService.cs` | Partition-parallel consumer for the Partitions (Live) tab: 4 per-partition queues, one concurrent apply per partition per tick into `CES_Partitions` |
 | `src/CES.UI/ViewModels/MainWindowViewModel.cs` | Shell VM — `ObservableCollection<ChangeEvent>` + status string, plus one property per scenario tab VM |
 | `src/CES.UI/Views/MainWindow.axaml` | `TabControl` shell — Live Feed + 5 scenario tabs |
 | `src/CES.UI/Views/LiveFeedView.axaml` | Dark event feed UI — colour-coded INS/UPD/DEL badges (moved out of MainWindow) |
@@ -52,6 +53,10 @@ Each is a standalone in-memory simulation (no Kafka/SQL Server) with its own Vie
 ### Batching (Live) tab
 
 `ViewModels/BatchingLiveTabViewModel.cs` (+ `Views/BatchingLiveView.axaml`) is the live twin of the Batching simulation: consumer group `batching` → `CES_Batching`. Incoming events queue up; **Add Next Event to Batch** buffers up to 5 (no SQL); **Commit Batch** applies them via `OrderEventApplier.ApplyBatchAsync` in one `SqlTransaction` — ledger check/insert per event, offset upserted once per partition. **Simulate Crash Mid-Batch** discards the uncommitted batch (nothing was persisted); Stop + Start replays.
+
+### Partitions (Live) tab
+
+`ViewModels/ParallelPartitionsLiveTabViewModel.cs` (+ `Views/ParallelPartitionsLiveView.axaml`) is the live twin of the Parallel Partitions simulation: consumer group `partitions` → `CES_Partitions`. The orders hub has 4 partitions; incoming events land in per-partition queues (`LivePartitionWorkerState`), and **Process Next Event (all partitions)** applies one event per partition concurrently (`Task` per partition, own `SqlConnection` each). `partition_id` in the ledger/offsets keys keeps the workers independent.
 
 ### Multi-Table (Live) tab
 
@@ -104,7 +109,7 @@ dotnet run --project src\CES.UI
 
 - Namespace: `ces-poc-od.servicebus.windows.net`
 - Event Hub: `orders`
-- Consumer groups: `$Default` (Live Feed), `consumer1`/`consumer2` (Two Consumers Live), `idempotency` (Idempotency Live), `batching` (Batching Live), `multitable` (Multi-Table Live)
+- Consumer groups: `$Default` (Live Feed), `consumer1`/`consumer2` (Two Consumers Live), `idempotency` (Idempotency Live), `batching` (Batching Live), `multitable` (Multi-Table Live), `partitions` (Partitions Live)
 - Protocol: Kafka (port 9093, SASL/SSL, username `$ConnectionString`)
 
 ## SQL Server CES config
