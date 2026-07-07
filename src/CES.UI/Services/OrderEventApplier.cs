@@ -19,6 +19,17 @@ public sealed record ParsedOrderEvent(
     object SalesDate, object EstimatedShipDate, object ShippingId,
     object ShippingLocation, object Product, object Quantity, object Price);
 
+public sealed record ParsedOrderLineEvent(
+    string Operation, int OrderLineId, string CommitLsn,
+    object OrderId, object ProductId, object Quantity, object UnitPrice);
+
+/// <summary>
+/// The table-independent part of a CES event: envelope fields plus the raw row
+/// image, before mapping to a table-specific record.
+/// </summary>
+public sealed record ParsedEnvelope(
+    string Operation, string Table, int KeyId, string CommitLsn, JsonElement Row, bool HasRow);
+
 /// <summary>
 /// The shared heart of every live consumer: parse a raw CES event and apply it
 /// to a destination database with the ledger + offset pattern from
@@ -99,6 +110,58 @@ public static class OrderEventApplier
         return result is true;
     }
 
+    // OrderLines twin of ApplyItemBody. LineTotal is a computed column
+    // (Quantity * UnitPrice) and is therefore never written.
+    private const string OrderLineItemBody = """
+            IF NOT EXISTS (SELECT 1 FROM dbo.ces_ledger WITH (UPDLOCK, HOLDLOCK)
+                           WHERE partition_id = @PartitionId AND sequence_number = @SequenceNumber)
+            BEGIN
+                IF @Operation IN ('INS','UPD')
+                    MERGE dbo.OrderLines AS T
+                    USING (VALUES (@OrderLineID, @OrderID, @ProductID, @Quantity, @UnitPrice))
+                          AS S(OrderLineID, OrderID, ProductID, Quantity, UnitPrice)
+                    ON T.OrderLineID = S.OrderLineID
+                    WHEN MATCHED THEN UPDATE SET
+                        OrderID   = S.OrderID,
+                        ProductID = S.ProductID,
+                        Quantity  = S.Quantity,
+                        UnitPrice = S.UnitPrice
+                    WHEN NOT MATCHED THEN INSERT (OrderLineID, OrderID, ProductID, Quantity, UnitPrice)
+                        VALUES (S.OrderLineID, S.OrderID, S.ProductID, S.Quantity, S.UnitPrice);
+                ELSE IF @Operation = 'DEL'
+                    DELETE FROM dbo.OrderLines WHERE OrderLineID = @OrderLineID;
+
+                INSERT dbo.ces_ledger (partition_id, sequence_number, commit_lsn)
+                VALUES (@PartitionId, @SequenceNumber, @CommitLsn);
+
+                SET @applied = 1;
+            END
+            """;
+
+    public static async Task<bool> ApplyOrderLineAsync(
+        SqlConnection conn, ParsedOrderLineEvent ev, int partitionId, long sequenceNumber,
+        CancellationToken cancellationToken)
+    {
+        const string sql =
+            "SET XACT_ABORT ON;\nDECLARE @applied bit = 0;\nBEGIN TRAN;\n"
+            + OrderLineItemBody +
+            "\nIF @applied = 1\nBEGIN\n" + OffsetUpsert + "\nEND\nCOMMIT;\nSELECT @applied;";
+
+        await using var cmd = new SqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@PartitionId", partitionId);
+        cmd.Parameters.AddWithValue("@SequenceNumber", sequenceNumber);
+        cmd.Parameters.AddWithValue("@CommitLsn", ev.CommitLsn);
+        cmd.Parameters.AddWithValue("@Operation", ev.Operation);
+        cmd.Parameters.AddWithValue("@OrderLineID", ev.OrderLineId);
+        cmd.Parameters.AddWithValue("@OrderID", ev.OrderId);
+        cmd.Parameters.AddWithValue("@ProductID", ev.ProductId);
+        cmd.Parameters.AddWithValue("@Quantity", ev.Quantity);
+        cmd.Parameters.AddWithValue("@UnitPrice", ev.UnitPrice);
+
+        var result = await cmd.ExecuteScalarAsync(cancellationToken);
+        return result is true;
+    }
+
     // The batching pattern from docs/ces_idempotent.sql: all events of the batch in
     // ONE transaction — per event the ledger check + DML + ledger insert, then the
     // offset upserted once per partition. Crash before commit = nothing persisted.
@@ -159,9 +222,9 @@ public static class OrderEventApplier
         cmd.Parameters.AddWithValue("@Price", ev.Price);
     }
 
-    // Same envelope handling as KafkaConsumerService.ParseEvent, but extracts the
-    // full row so it can be applied to the destination Orders table.
-    public static ParsedOrderEvent? Parse(string json)
+    // Same envelope handling as KafkaConsumerService.ParseEvent, but keeps the raw
+    // row image so it can be mapped to a table-specific record afterwards.
+    public static ParsedEnvelope? ParseEnvelope(string json)
     {
         try
         {
@@ -180,7 +243,7 @@ public static class OrderEventApplier
             var data = dataDoc.RootElement;
 
             var table = "";
-            var orderId = 0;
+            var keyId = 0;
             var commitLsn = "";
 
             if (data.TryGetProperty("eventsource", out var src))
@@ -191,7 +254,7 @@ public static class OrderEventApplier
                     foreach (var key in pk.EnumerateArray())
                     {
                         var value = key.TryGetProperty("value", out var v) ? v.GetString() ?? "" : "";
-                        int.TryParse(value, out orderId);
+                        int.TryParse(value, out keyId);
                         break;
                     }
 
@@ -216,30 +279,50 @@ public static class OrderEventApplier
                     : JsonDocument.Parse(cur.GetRawText());
                 row = rowDoc.RootElement.Clone();
                 hasRow = true;
-
-                if (orderId == 0 && row.TryGetProperty("OrderID", out var idProp))
-                    orderId = idProp.ValueKind == JsonValueKind.Number
-                        ? idProp.GetInt32()
-                        : int.TryParse(idProp.GetString(), out var id) ? id : 0;
             }
 
-            return new ParsedOrderEvent(
-                operation, table, orderId, commitLsn,
-                GetString(row, hasRow, "CustomerFirstName"),
-                GetString(row, hasRow, "CustomerLastName"),
-                GetString(row, hasRow, "Company"),
-                GetDate(row, hasRow, "SalesDate"),
-                GetDate(row, hasRow, "EstimatedShipDate"),
-                GetInt(row, hasRow, "ShippingID"),
-                GetString(row, hasRow, "ShippingLocation"),
-                GetString(row, hasRow, "Product"),
-                GetInt(row, hasRow, "Quantity"),
-                GetDecimal(row, hasRow, "Price"));
+            return new ParsedEnvelope(operation, table, keyId, commitLsn, row, hasRow);
         }
         catch
         {
             return null;
         }
+    }
+
+    public static ParsedOrderEvent? Parse(string json)
+    {
+        var env = ParseEnvelope(json);
+        return env is null ? null : ToOrderEvent(env);
+    }
+
+    public static ParsedOrderEvent ToOrderEvent(ParsedEnvelope env) =>
+        new(env.Operation, env.Table, KeyOrFallback(env, "OrderID"), env.CommitLsn,
+            GetString(env.Row, env.HasRow, "CustomerFirstName"),
+            GetString(env.Row, env.HasRow, "CustomerLastName"),
+            GetString(env.Row, env.HasRow, "Company"),
+            GetDate(env.Row, env.HasRow, "SalesDate"),
+            GetDate(env.Row, env.HasRow, "EstimatedShipDate"),
+            GetInt(env.Row, env.HasRow, "ShippingID"),
+            GetString(env.Row, env.HasRow, "ShippingLocation"),
+            GetString(env.Row, env.HasRow, "Product"),
+            GetInt(env.Row, env.HasRow, "Quantity"),
+            GetDecimal(env.Row, env.HasRow, "Price"));
+
+    public static ParsedOrderLineEvent ToOrderLineEvent(ParsedEnvelope env) =>
+        new(env.Operation, KeyOrFallback(env, "OrderLineID"), env.CommitLsn,
+            GetInt(env.Row, env.HasRow, "OrderID"),
+            GetInt(env.Row, env.HasRow, "ProductID"),
+            GetInt(env.Row, env.HasRow, "Quantity"),
+            GetDecimal(env.Row, env.HasRow, "UnitPrice"));
+
+    // pkkey when present, otherwise the key column from the row image
+    private static int KeyOrFallback(ParsedEnvelope env, string keyColumn)
+    {
+        if (env.KeyId != 0) return env.KeyId;
+        if (!env.HasRow || !env.Row.TryGetProperty(keyColumn, out var p)) return 0;
+        return p.ValueKind == JsonValueKind.Number
+            ? p.GetInt32()
+            : int.TryParse(p.GetString(), out var id) ? id : 0;
     }
 
     private static string FirstString(JsonElement el, params string[] names)

@@ -26,6 +26,8 @@ public partial class MainWindowViewModel : ObservableObject
 
     public MultiTableTabViewModel MultiTableTab { get; } = new();
 
+    public MultiTableLiveTabViewModel MultiTableLiveTab { get; } = new();
+
     public BatchingTabViewModel BatchingTab { get; } = new();
 
     public BatchingLiveTabViewModel BatchingLiveTab { get; } = new();

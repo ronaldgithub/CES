@@ -13,7 +13,7 @@
 -- Azure side (portal or CLI, see README):
 --   Event Hubs namespace  : ces-poc-od       (Standard tier)
 --   Event hub             : orders
---   Consumer groups       : $Default, consumer1, consumer2, idempotency, batching
+--   Consumer groups       : $Default, consumer1, consumer2, idempotency, batching, multitable
 --
 -- Parts 1–5 are one-time setup. Part 6 generates test events.
 -- Part 7 is diagnostics/recovery — run only when needed.
@@ -48,6 +48,17 @@ CREATE TABLE dbo.Orders (
     Product NVARCHAR(100),
     Quantity INT,
     Price DECIMAL(10, 2)
+);
+GO
+
+-- Second streamed table for the Multi-Table (Live) tab
+CREATE TABLE dbo.OrderLines (
+    OrderLineID INT PRIMARY KEY CLUSTERED,
+    OrderID INT NOT NULL CONSTRAINT FK_OrderLines_Orders REFERENCES dbo.Orders (OrderID),
+    ProductID INT NOT NULL,
+    Quantity INT NOT NULL,
+    UnitPrice DECIMAL(18, 2) NOT NULL,
+    LineTotal AS (Quantity * UnitPrice)
 );
 GO
 
@@ -97,8 +108,9 @@ EXEC sys.sp_create_event_stream_group
     @destination_credential = eventhubscred;
 GO
 
--- Stream the Orders table into the group
+-- Stream the Orders and OrderLines tables into the group
 EXEC sys.sp_add_object_to_event_stream_group N'OrdersCESGroupKafka', N'dbo.Orders';
+EXEC sys.sp_add_object_to_event_stream_group N'OrdersCESGroupKafka', N'dbo.OrderLines';
 GO
 
 
@@ -120,18 +132,22 @@ GO
 -- CES_IdempotencyDemo is the same schema for the Idempotency &
 -- Offsets (Live) tab, which steps through the stream one event at
 -- a time. CES_BatchingDemo likewise backs the Batching (Live) tab,
--- which commits whole batches in one transaction.
+-- which commits whole batches in one transaction. CES_MultiTable
+-- backs the Multi-Table (Live) tab and also has OrderLines: one
+-- shared ledger/offset guards both tables.
 USE [master];
 GO
 DROP DATABASE IF EXISTS CES_Destination1;
 DROP DATABASE IF EXISTS CES_Destination2;
 DROP DATABASE IF EXISTS CES_IdempotencyDemo;
 DROP DATABASE IF EXISTS CES_BatchingDemo;
+DROP DATABASE IF EXISTS CES_MultiTable;
 GO
 CREATE DATABASE CES_Destination1;
 CREATE DATABASE CES_Destination2;
 CREATE DATABASE CES_IdempotencyDemo;
 CREATE DATABASE CES_BatchingDemo;
+CREATE DATABASE CES_MultiTable;
 GO
 
 USE [CES_Destination1];
@@ -254,6 +270,47 @@ CREATE TABLE dbo.ces_offsets (
 );
 GO
 
+USE [CES_MultiTable];
+GO
+CREATE TABLE dbo.Orders (
+    OrderID INT PRIMARY KEY CLUSTERED IDENTITY,
+    CustomerFirstName NVARCHAR(50),
+    CustomerLastName NVARCHAR(50),
+    Company NVARCHAR(100),
+    SalesDate DATE,
+    EstimatedShipDate DATE,
+    ShippingID INT,
+    ShippingLocation NVARCHAR(100),
+    Product NVARCHAR(100),
+    Quantity INT,
+    Price DECIMAL(10, 2)
+);
+-- No FK to Orders here: Orders and OrderLines events can arrive on
+-- different partitions, so the apply order is not guaranteed.
+-- LineTotal stays computed, exactly like the source table.
+CREATE TABLE dbo.OrderLines (
+    OrderLineID INT PRIMARY KEY CLUSTERED,
+    OrderID INT NOT NULL,
+    ProductID INT NOT NULL,
+    Quantity INT NOT NULL,
+    UnitPrice DECIMAL(18, 2) NOT NULL,
+    LineTotal AS (Quantity * UnitPrice)
+);
+CREATE TABLE dbo.ces_ledger (
+    partition_id        INT          NOT NULL,
+    sequence_number     BIGINT       NOT NULL,
+    commit_lsn          VARCHAR(64)  NOT NULL,
+    processed_at        DATETIME2    NOT NULL DEFAULT SYSDATETIME(),
+    CONSTRAINT PK_ces_ledger PRIMARY KEY (partition_id, sequence_number)
+);
+CREATE TABLE dbo.ces_offsets (
+    partition_id         INT          NOT NULL PRIMARY KEY,
+    last_sequence_number BIGINT       NOT NULL,
+    last_commit_lsn      VARCHAR(64)  NOT NULL,
+    updated_at           DATETIME2    NOT NULL DEFAULT SYSDATETIME()
+);
+GO
+
 
 -- ============================================================
 -- PART 6 — Generate test events (run with the app watching)
@@ -277,6 +334,16 @@ GO
 INSERT INTO Orders (CustomerFirstName, CustomerLastName, Company, SalesDate, EstimatedShipDate, ShippingID, ShippingLocation, Product, Quantity, Price)
 VALUES ('Test', 'Row', 'Test Company', '2026-01-01', '2026-02-01', 1, 'Nowhere', 'Widget', 1, 1.00);
 DELETE FROM Orders WHERE Company = 'Test Company';
+GO
+
+-- OrderLines events for the Multi-Table (Live) tab: INS, UPD, DEL
+DECLARE @line INT = (SELECT ISNULL(MAX(OrderLineID), 0) + 1 FROM OrderLines);
+INSERT INTO OrderLines (OrderLineID, OrderID, ProductID, Quantity, UnitPrice)
+VALUES (@line, (SELECT MAX(OrderID) FROM Orders), 9, 2, 11.00);
+
+UPDATE OrderLines SET Quantity = 3 WHERE OrderLineID = @line;
+
+DELETE FROM OrderLines WHERE OrderLineID = @line;
 GO
 
 
@@ -308,5 +375,6 @@ EXEC sys.sp_create_event_stream_group
     @destination_location   = N'ces-poc-od.servicebus.windows.net/orders',
     @destination_credential = eventhubscred;
 EXEC sys.sp_add_object_to_event_stream_group N'OrdersCESGroupKafka', N'dbo.Orders';
+EXEC sys.sp_add_object_to_event_stream_group N'OrdersCESGroupKafka', N'dbo.OrderLines';
 */
 GO

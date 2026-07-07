@@ -43,6 +43,9 @@
         <TabItem Header="Multi-Table Routing">
             <views:MultiTableView DataContext="{Binding MultiTableTab}"/>
         </TabItem>
+        <TabItem Header="Multi-Table (Live)">
+            <views:MultiTableLiveView DataContext="{Binding MultiTableLiveTab}"/>
+        </TabItem>
         <TabItem Header="Batching">
             <views:BatchingView DataContext="{Binding BatchingTab}"/>
         </TabItem>

@@ -2,7 +2,7 @@
 
 A dark-mode Avalonia desktop app that shows SQL Server 2025 Change Event Streaming (CES) events in real time — every INSERT, UPDATE, and DELETE on the `Orders` table appears instantly in the UI, pushed through Azure Event Hubs.
 
-Alongside the live feed, the app ships 5 self-contained scenario-simulation tabs that demonstrate core CES consumer design patterns (idempotency, multiple consumers, parallel partitions, multi-table routing, batching) entirely in-memory — no Event Hub or SQL Server connection required to explore them. Three of those patterns also have a live twin: **Idempotency (Live)** steps through the real stream one event at a time, **Two Consumers (Live)** runs two real consumers side by side, and **Batching (Live)** commits whole batches in a single transaction — all applying events to local destination databases with the ledger + offset pattern.
+Alongside the live feed, the app ships 5 self-contained scenario-simulation tabs that demonstrate core CES consumer design patterns (idempotency, multiple consumers, parallel partitions, multi-table routing, batching) entirely in-memory — no Event Hub or SQL Server connection required to explore them. Four of those patterns also have a live twin: **Idempotency (Live)** steps through the real stream one event at a time, **Two Consumers (Live)** runs two real consumers side by side, **Batching (Live)** commits whole batches in a single transaction, and **Multi-Table (Live)** routes `Orders` and `OrderLines` events to their own tables behind one shared ledger — all applying events to local destination databases with the ledger + offset pattern.
 
 ![CES Monitor screenshot](pictures/app_live_feed.jpg)
 
@@ -124,7 +124,8 @@ Azure Event Hubs (ces-poc-od / orders)
        ├─ consumer group consumer1   → CES_Destination1 (Two Consumers Live)
        ├─ consumer group consumer2   → CES_Destination2 (Two Consumers Live)
        ├─ consumer group idempotency → CES_IdempotencyDemo (Idempotency Live, single-step)
-       └─ consumer group batching    → CES_BatchingDemo (Batching Live, one transaction per batch)
+       ├─ consumer group batching    → CES_BatchingDemo (Batching Live, one transaction per batch)
+       └─ consumer group multitable  → CES_MultiTable (Multi-Table Live, Orders + OrderLines routing)
 ```
 
 One stream, three independent readers — Event Hubs fan-out. The Live Feed only displays events; the two live consumers apply them to their own destination database using a ledger + offset store for exactly-once semantics.
@@ -293,6 +294,7 @@ If you see `InvalidSignature: The token has an invalid signature`, the SQL crede
        @destination_credential = eventhubscred;
 
    EXEC sys.sp_add_object_to_event_stream_group N'OrdersCESGroupKafka', N'dbo.Orders';
+   EXEC sys.sp_add_object_to_event_stream_group N'OrdersCESGroupKafka', N'dbo.OrderLines';
    ```
 
    (Both steps are ready to run in `scripts/ces_demo.sql` Part 7.)
@@ -345,6 +347,16 @@ az eventhubs eventhub consumer-group create --resource-group ces-poc-rg `
 
 The **Batching (Live)** tab is the real version of the Batching simulation. Events from the Event Hub (consumer group `batching`) pile up in the incoming queue; **Add Next Event to Batch** buffers up to 5 of them — still no SQL — and **Commit Batch** applies the whole batch to `CES_BatchingDemo` in **one** SQL transaction: a ledger check + DML + ledger row per event, and the offset updated once per partition at the end.
 
+![Batching Live: a batch buffered, ledger untouched](pictures/app_batching1.jpg)
+
+A simulated crash throws the buffered batch away — the log shows nothing was persisted, and after Stop + Start the same events reappear in the queue:
+
+![Batching Live: crash mid-batch, replayed events back in the queue](pictures/app_batching0.jpg)
+
+The destination table is real — the committed batches are visible in SSMS:
+
+![CES_BatchingDemo Orders in SSMS](pictures/app_batching3.jpg)
+
 - **Simulate Crash Mid-Batch** throws away the uncommitted batch: since nothing was written until the commit, the database is untouched — Stop + Start replays the stream and the events come back
 - Duplicates inside a committed batch (e.g. after such a replay) are skipped by the ledger check, per event, inside the same transaction
 - Fewer, bigger transactions = the throughput pattern; the trade-off is more re-work after a crash, which the ledger makes harmless
@@ -358,6 +370,30 @@ az eventhubs eventhub consumer-group create --resource-group ces-poc-rg `
 
 ---
 
+## Multi-Table (Live)
+
+The **Multi-Table (Live)** tab is the real version of the Multi-Table Routing simulation. Both `dbo.Orders` and `dbo.OrderLines` are in the CES stream group, so their events arrive interleaved on the same stream (consumer group `multitable`). Each **Process Next Event** click routes one event to the matching table in `CES_MultiTable` — and one **shared** `ces_ledger`/`ces_offsets` pair guards both tables, which is the point: the consumer tracks a single position in the stream no matter how many tables it fans out to.
+
+![Multi-Table Live: connected, events queued](pictures/app_multi_table1.jpg)
+
+After clicking through the queue, Orders landed left, OrderLines right, one shared ledger position for both:
+
+![Multi-Table Live: events routed to both tables](pictures/app_multi_table2.jpg)
+
+- The action bar previews the next event including its target table (`Next: seq … INS on dbo.OrderLines`)
+- `OrderLines.LineTotal` is a computed column (`Quantity × UnitPrice`) and is never written by the consumer
+- The destination `OrderLines` has no FK to `Orders`: the two tables' events can arrive on different partitions, so apply order across tables isn't guaranteed
+- `scripts/ces_demo.sql` Part 6 ends with an INS/UPD/DEL trio on `OrderLines` to feed this tab
+
+Extra setup: Part 5 creates the `CES_MultiTable` database, Part 3 adds `dbo.OrderLines` to the stream group, and the consumer group is created the same way:
+
+```powershell
+az eventhubs eventhub consumer-group create --resource-group ces-poc-rg `
+    --namespace-name ces-poc-od --eventhub-name orders --name multitable
+```
+
+---
+
 ## Two Consumers (Live)
 
 The **Two Consumers (Live)** tab is the real version of the Two Consumers simulation: two actual Kafka consumers, each with its own Event Hubs consumer group, applying the same CES stream to its own destination database with the ledger + offset pattern from `docs/ces_idempotent.sql`.
@@ -366,7 +402,7 @@ The **Two Consumers (Live)** tab is the real version of the Two Consumers simula
 
 ### Extra setup
 
-1. **Destination databases** — run `scripts/ces_demo.sql` Part 5 once. It creates `CES_Destination1`, `CES_Destination2`, `CES_IdempotencyDemo` and `CES_BatchingDemo`, each with a copy of `Orders` plus the `ces_ledger` and `ces_offsets` tables.
+1. **Destination databases** — run `scripts/ces_demo.sql` Part 5 once. It creates `CES_Destination1`, `CES_Destination2`, `CES_IdempotencyDemo`, `CES_BatchingDemo` and `CES_MultiTable`, each with a copy of `Orders` plus the `ces_ledger` and `ces_offsets` tables (`CES_MultiTable` also gets `OrderLines`).
 2. **Consumer groups** — add `consumer1` and `consumer2` to the `orders` hub (the Kafka `group.id` maps to an Event Hubs consumer group; the Live Feed keeps `$Default`):
 
    ```powershell
@@ -415,7 +451,8 @@ CES/
     │   ├── LiveConsumerService.cs    # Kafka consumer → idempotent SQL apply
     │   ├── IdempotencyLiveService.cs # Single-step consumer (Idempotency Live)
     │   ├── BatchingLiveService.cs    # Batch-commit consumer (Batching Live)
-    │   ├── OrderEventApplier.cs      # Shared parse + idempotent-apply logic (single + batch)
+    │   ├── MultiTableLiveService.cs  # Table-routing consumer (Multi-Table Live)
+    │   ├── OrderEventApplier.cs      # Shared parse + idempotent-apply logic (single, batch, OrderLines)
     │   └── DestinationDatabase.cs    # Shared load/reset/count helpers for the local DBs
     ├── ViewModels/
     │   ├── MainWindowViewModel.cs        # Shell VM — live feed + tab VMs
@@ -425,6 +462,7 @@ CES/
     │   ├── TwoConsumersLiveTabViewModel.cs
     │   ├── ParallelPartitionsTabViewModel.cs
     │   ├── MultiTableTabViewModel.cs
+    │   ├── MultiTableLiveTabViewModel.cs
     │   ├── BatchingTabViewModel.cs
     │   └── BatchingLiveTabViewModel.cs
     └── Views/
@@ -436,6 +474,7 @@ CES/
         ├── TwoConsumersLiveView.axaml
         ├── ParallelPartitionsView.axaml
         ├── MultiTableView.axaml
+        ├── MultiTableLiveView.axaml
         ├── BatchingView.axaml
         └── BatchingLiveView.axaml
 ```

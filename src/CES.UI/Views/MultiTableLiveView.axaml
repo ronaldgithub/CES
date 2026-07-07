@@ -1,0 +1,74 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:CES.UI.ViewModels"
+             x:Class="CES.UI.Views.MultiTableLiveView"
+             x:DataType="vm:MultiTableLiveTabViewModel">
+
+    <Grid RowDefinitions="Auto,Auto,*,Auto" Background="#111827">
+
+        <!-- ── Action bar ── -->
+        <Border Grid.Row="0" Background="#1F2937" Padding="16,10">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <Button Content="Start" Command="{Binding StartCommand}"/>
+                <Button Content="Stop" Command="{Binding StopCommand}"/>
+                <Button Content="Process Next Event" Command="{Binding ProcessNextEventCommand}"/>
+                <Button Content="Reset DB" Command="{Binding ResetDbCommand}"/>
+                <TextBlock Text="{Binding NextEventPreview}"
+                           Foreground="#93C5FD"
+                           FontFamily="Consolas,Menlo,monospace"
+                           FontSize="12.5"
+                           VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Status}"
+                           Foreground="#6B7280"
+                           FontSize="12"
+                           VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <!-- ── Shared ledger + offset ── -->
+        <Border Grid.Row="1" Background="#1F2937" CornerRadius="6" Padding="12" Margin="16,12,16,0">
+            <StackPanel Spacing="4">
+                <TextBlock Text="Shared ces_ledger / ces_offsets (CES_MultiTable)" Foreground="#6B7280" FontSize="11" FontWeight="SemiBold"/>
+                <TextBlock Text="{Binding OffsetSummary}" Foreground="#6EE7B7" FontFamily="Consolas,Menlo,monospace" FontSize="12.5"/>
+                <TextBlock Text="{Binding LedgerCount, StringFormat='Ledger rows: {0}'}" Foreground="#D1D5DB" FontFamily="Consolas,Menlo,monospace" FontSize="12.5"/>
+            </StackPanel>
+        </Border>
+
+        <!-- ── Target tables ── -->
+        <Grid Grid.Row="2" ColumnDefinitions="*,*" Margin="16,12,16,0">
+            <StackPanel Grid.Column="0" Margin="0,0,8,0" Spacing="4">
+                <TextBlock Text="dbo.Orders" Foreground="#6B7280" FontSize="11" FontWeight="SemiBold"/>
+                <ListBox ItemsSource="{Binding OrdersRows}" Background="#1F2937" BorderThickness="0" MaxHeight="220">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}" Foreground="#FCA5A5" FontFamily="Consolas,Menlo,monospace" FontSize="12.5" Padding="4"/>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Margin="8,0,0,0" Spacing="4">
+                <TextBlock Text="dbo.OrderLines" Foreground="#6B7280" FontSize="11" FontWeight="SemiBold"/>
+                <ListBox ItemsSource="{Binding OrderLinesRows}" Background="#1F2937" BorderThickness="0" MaxHeight="220">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}" Foreground="#FCA5A5" FontFamily="Consolas,Menlo,monospace" FontSize="12.5" Padding="4"/>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </StackPanel>
+        </Grid>
+
+        <!-- ── Log ── -->
+        <StackPanel Grid.Row="3" Margin="16,12,16,16">
+            <TextBlock Text="Log" Foreground="#6B7280" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4"/>
+            <ListBox ItemsSource="{Binding Log}" Background="#111827" BorderThickness="0" MaxHeight="120">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}" Foreground="#D1D5DB" FontFamily="Consolas,Menlo,monospace" FontSize="12" Padding="0,2"/>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </StackPanel>
+
+    </Grid>
+</UserControl>

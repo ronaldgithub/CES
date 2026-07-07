@@ -2,7 +2,7 @@
 
 ## Project
 
-SQL Server 2025 CES Monitor — Avalonia dark-mode desktop app that consumes Change Event Streaming events from Azure Event Hubs and displays them live. Also includes 5 in-memory scenario-simulation tabs (no Event Hub/SQL Server needed) that demonstrate CES consumer design patterns from `docs/ces_idempotent.sql`, plus three live tabs where real consumers apply the stream to local destination databases: "Idempotency (Live)" (single-step), "Two Consumers (Live)" and "Batching (Live)" (one transaction per batch).
+SQL Server 2025 CES Monitor — Avalonia dark-mode desktop app that consumes Change Event Streaming events from Azure Event Hubs and displays them live. Also includes 5 in-memory scenario-simulation tabs (no Event Hub/SQL Server needed) that demonstrate CES consumer design patterns from `docs/ces_idempotent.sql`, plus four live tabs where real consumers apply the stream to local destination databases: "Idempotency (Live)" (single-step), "Two Consumers (Live)", "Batching (Live)" (one transaction per batch) and "Multi-Table (Live)" (Orders + OrderLines routing behind one shared ledger).
 
 ## Stack
 
@@ -22,6 +22,7 @@ SQL Server 2025 CES Monitor — Avalonia dark-mode desktop app that consumes Cha
 | `src/CES.UI/Services/DestinationDatabase.cs` | Shared load-state/reset/count helpers for the local destination DBs |
 | `src/CES.UI/Services/IdempotencyLiveService.cs` | Single-step consumer for the Idempotency (Live) tab: buffers events, applies one per click to `CES_IdempotencyDemo` |
 | `src/CES.UI/Services/BatchingLiveService.cs` | Batch-commit consumer for the Batching (Live) tab: buffers events, applies a batch per commit to `CES_BatchingDemo` |
+| `src/CES.UI/Services/MultiTableLiveService.cs` | Table-routing consumer for the Multi-Table (Live) tab: routes Orders/OrderLines events to `CES_MultiTable` behind one shared ledger |
 | `src/CES.UI/ViewModels/MainWindowViewModel.cs` | Shell VM — `ObservableCollection<ChangeEvent>` + status string, plus one property per scenario tab VM |
 | `src/CES.UI/Views/MainWindow.axaml` | `TabControl` shell — Live Feed + 5 scenario tabs |
 | `src/CES.UI/Views/LiveFeedView.axaml` | Dark event feed UI — colour-coded INS/UPD/DEL badges (moved out of MainWindow) |
@@ -51,6 +52,10 @@ Each is a standalone in-memory simulation (no Kafka/SQL Server) with its own Vie
 ### Batching (Live) tab
 
 `ViewModels/BatchingLiveTabViewModel.cs` (+ `Views/BatchingLiveView.axaml`) is the live twin of the Batching simulation: consumer group `batching` → `CES_BatchingDemo`. Incoming events queue up; **Add Next Event to Batch** buffers up to 5 (no SQL); **Commit Batch** applies them via `OrderEventApplier.ApplyBatchAsync` in one `SqlTransaction` — ledger check/insert per event, offset upserted once per partition. **Simulate Crash Mid-Batch** discards the uncommitted batch (nothing was persisted); Stop + Start replays.
+
+### Multi-Table (Live) tab
+
+`ViewModels/MultiTableLiveTabViewModel.cs` (+ `Views/MultiTableLiveView.axaml`) is the live twin of the Multi-Table Routing simulation: consumer group `multitable` → `CES_MultiTable`, which holds **both** `Orders` and `OrderLines` (both tables are in the CES stream group). `OrderEventApplier.ParseEnvelope` gives the table-independent envelope; **Process Next Event** maps it via `ToOrderEvent`/`ToOrderLineEvent` and applies to the matching table — one shared `ces_ledger`/`ces_offsets` for both. `OrderLines.LineTotal` is computed and never written; the destination has no FK because cross-table event order isn't guaranteed across partitions.
 
 ### Two Consumers (Live) tab
 
@@ -99,7 +104,7 @@ dotnet run --project src\CES.UI
 
 - Namespace: `ces-poc-od.servicebus.windows.net`
 - Event Hub: `orders`
-- Consumer groups: `$Default` (Live Feed), `consumer1`/`consumer2` (Two Consumers Live), `idempotency` (Idempotency Live), `batching` (Batching Live)
+- Consumer groups: `$Default` (Live Feed), `consumer1`/`consumer2` (Two Consumers Live), `idempotency` (Idempotency Live), `batching` (Batching Live), `multitable` (Multi-Table Live)
 - Protocol: Kafka (port 9093, SASL/SSL, username `$ConnectionString`)
 
 ## SQL Server CES config
@@ -113,6 +118,8 @@ EXEC sys.sp_create_event_stream_group
 ```
 
 Note: `destination_type` is always `AzureEventHubsAmqp` from SQL Server's side — the Kafka protocol is used only on the consumer (app) side.
+
+The stream group contains two tables: `dbo.Orders` and `dbo.OrderLines` (added for the Multi-Table Live tab).
 
 ## User profile
 
